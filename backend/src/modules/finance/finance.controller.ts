@@ -157,7 +157,7 @@ export class FinanceController {
   // 6. TRANSACTION DETAIL
   // ==========================================
 
-  @Roles(SystemRoleType.ADMIN, SystemRoleType.TREASURER, SystemRoleType.LEADER)
+  @Roles(SystemRoleType.ADMIN, SystemRoleType.TREASURER, SystemRoleType.LEADER, SystemRoleType.RESIDENT)
   @Get('transactions/:id')
   @HttpCode(HttpStatus.OK)
   async getTransactionDetail(

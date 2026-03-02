@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { onSidebarUpdate, offSidebarUpdate } from "@/shared/helpers/sidebarEvents";
+import { getSeenAt } from "@/shared/helpers/seenPagesStore";
 
 // ============================================================
 // Badge Notification Hook
@@ -59,9 +60,9 @@ export function useBadgeNotifications(): BadgeCounts {
         promises.push(fetchEventBadge(role, result));
       }
 
-      // 3. FINANCE: check dues rule config (LEADER, ADMIN only)
-      if (["LEADER", "ADMIN"].includes(role)) {
-        promises.push(fetchFinanceBadge(result));
+      // 3. FINANCE: check dues rule config + new transactions (LEADER, ADMIN, TREASURER)
+      if (["LEADER", "ADMIN", "TREASURER"].includes(role)) {
+        promises.push(fetchFinanceBadge(role, result));
       }
 
       // 4. PAYMENT (RESIDENT): check unpaid current month
@@ -131,6 +132,10 @@ async function getUserService() {
   const mod = await import("@/shared/services/userService");
   return mod.userService;
 }
+async function getPaymentService() {
+  const mod = await import("@/features/payment/services/paymentService");
+  return mod.paymentService;
+}
 
 // -----------------------------------------------------------
 // 1. PROFILE BADGE
@@ -197,33 +202,68 @@ async function fetchEventBadge(role: string, result: BadgeCounts) {
 
 // -----------------------------------------------------------
 // 3. FINANCE BADGE
-// Check if OWN dues rule is configured (LEADER/ADMIN).
-// Does NOT count children—LEADER cannot configure RT duesRules,
-// only each RT's own ADMIN can.
+// - Check if OWN dues rule is configured (LEADER/ADMIN).
+// - Count transactions added since the user last visited FinancePage.
 // -----------------------------------------------------------
-async function fetchFinanceBadge(result: BadgeCounts) {
+async function fetchFinanceBadge(role: string, result: BadgeCounts) {
   try {
     const financeService = await getFinanceService();
-    const config = await financeService.getDuesConfig();
 
-    if (!config.duesRule) {
-      result.finance = 1;
+    const [configResult, txResult] = await Promise.allSettled([
+      ["LEADER", "ADMIN"].includes(role) ? financeService.getDuesConfig() : Promise.resolve(null),
+      financeService.getTransactions(),
+    ]);
+
+    // Dues rule not set badge
+    if (configResult.status === "fulfilled" && configResult.value && !configResult.value.duesRule) {
+      result.finance += 1;
       result.duesRuleNotSet = true;
+    }
+
+    // New transactions since last visit
+    if (txResult.status === "fulfilled" && Array.isArray(txResult.value)) {
+      const seenAt = getSeenAt("finance");
+      if (seenAt !== null) {
+        const newCount = txResult.value.filter(
+          (tx: { createdAt: string }) => new Date(tx.createdAt).getTime() > seenAt
+        ).length;
+        result.finance += newCount;
+      }
     }
   } catch { /* ignore */ }
 }
 
 // -----------------------------------------------------------
 // 4. PAYMENT BADGE (RESIDENT)
-// Check if current month dues are unpaid
+// - Check if current month dues are unpaid.
+// - Count payments added since the user last visited ResidentPaymentPage.
 // -----------------------------------------------------------
 async function fetchPaymentBadge(result: BadgeCounts) {
   try {
-    const financeService = await getFinanceService();
-    const bill = await financeService.getMyBill();
+    const [finServiceMod, payServiceMod] = await Promise.all([
+      getFinanceService(),
+      getPaymentService(),
+    ]);
 
-    if (bill && bill.baseMonthlyAmount > 0 && bill.unpaidMonthsCount > 0) {
-      result.payment = bill.unpaidMonthsCount;
+    const [billResult, historyResult] = await Promise.allSettled([
+      finServiceMod.getMyBill(),
+      payServiceMod.getHistory(),
+    ]);
+
+    // Unpaid dues badge
+    if (billResult.status === "fulfilled" && billResult.value?.baseMonthlyAmount > 0 && billResult.value?.unpaidMonthsCount > 0) {
+      result.payment += billResult.value.unpaidMonthsCount;
+    }
+
+    // New payment history since last visit
+    if (historyResult.status === "fulfilled" && Array.isArray(historyResult.value)) {
+      const seenAt = getSeenAt("payment");
+      if (seenAt !== null) {
+        const newCount = historyResult.value.filter(
+          (p: { createdAt: string }) => new Date(p.createdAt).getTime() > seenAt
+        ).length;
+        result.payment += newCount;
+      }
     }
   } catch { /* ignore */ }
 }

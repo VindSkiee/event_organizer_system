@@ -23,6 +23,24 @@ export interface WalletDetail {
   updatedAt: string;
 }
 
+export interface PaymentGatewayTxInfo {
+  id: string;
+  orderId: string;
+  status: string;
+  methodCategory: string;
+  providerCode?: string;
+  vaNumber?: string;
+  amount: number;
+  grossAmount?: number;
+  monthCount?: number;
+  midtransId?: string;
+  redirectUrl?: string;
+  paidAt?: string;
+  createdAt?: string;
+  user?: { id: string; fullName: string; email: string };
+  contribution?: { month: number; year: number } | null;
+}
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -33,6 +51,7 @@ export interface Transaction {
   createdBy?: {
     fullName: string;
   };
+  paymentGatewayTx?: PaymentGatewayTxInfo | null;
 }
 
 export interface BillBreakdown {
@@ -46,11 +65,12 @@ export interface MyBill {
   totalAmount: number;
   currency: string;
   breakdown: Array<{ type: string; groupName: string; amount: number; destinationWalletId: number }>;
+  baseBreakdown: Array<{ type: string; groupName: string; amount: number; destinationWalletId: number }>;
   dueDateDescription: string;
   nextBillMonth: number;
   nextBillYear: number;
-  unpaidMonthsCount: number; // Tipe baru dari backend
-  baseMonthlyAmount: number; // Tipe baru dari backend
+  unpaidMonthsCount: number;
+  baseMonthlyAmount: number;
 }
 
 export interface Contribution {
@@ -170,8 +190,10 @@ export interface TransactionDetail {
     id: string;
     month: number;
     year: number;
+    amount?: number;
     user: { id: string; fullName: string; email: string };
   } | null;
+  paymentGatewayTx?: PaymentGatewayTxInfo | null;
 }
 
 // === Hierarchy Data (for Organization) ===

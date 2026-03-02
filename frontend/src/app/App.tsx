@@ -17,13 +17,12 @@ import EventDetailPage from "@/features/event/pages/EventDetailPage";
 import FinancePage from "@/features/finance/pages/FinancePage";
 import PaymentPage from "@/features/payment/pages/PaymentPage";
 import ResidentPaymentPage from "@/features/payment/pages/ResidentPaymentPage";
-import PaymentDetailPage from "@/features/payment/pages/PaymentDetailPage";
 import OrganizationPage from "@/features/organization/pages/OrganizationPage";
 import ProfilePage from "@/features/profile/pages/ProfilePage";
 import UserDetailPage from "@/features/profile/pages/UserDetailPage";
 import DuesConfigPage from "@/features/finance/pages/DuesConfigPage";
 import GroupFinanceDetailPage from "@/features/finance/pages/GroupFinanceDetailPage";
-import TransactionDetailPage from "@/features/finance/pages/TransactionDetailPage";
+import TransactionDetailPage from "@/shared/pages/TransactionDetailPage";
 import FundRequestDetailPage from "@/features/finance/pages/FundRequestDetailPage";
 import GroupDuesProgressPage from "@/features/payment/pages/GroupDuesProgressPage";
 import RoleLabelSettingsPage from "@/features/settings/pages/RoleLabelSettingsPage";
@@ -116,9 +115,7 @@ function App() {
                   <Route path="detail-progres/:groupId" element={<PaymentPage />} />
                   <Route path="progres-iuran/:groupId" element={<GroupDuesProgressPage />} />
                   
-                  <Route path="pembayaran/:id" element={<PaymentDetailPage />} />
                   {/* <Route path="keuangan-rt/:groupId" element={<GroupFinanceDetailPage />} /> */}
-                  <Route path="transaksi/:id" element={<TransactionDetailPage />} />
                 </Route>
 
                 {/* Hanya ADMIN (Ketua RT) yang bisa buka ini */}
@@ -128,9 +125,7 @@ function App() {
                   <Route path="events-rt/:id" element={<EventDetailPage />} />
                   <Route path="kas-rt" element={<FinancePage />} />
                   <Route path="pembayaran-rt" element={<PaymentPage />} />
-                  <Route path="pembayaran-rt/:id" element={<PaymentDetailPage />} />
                   {/* <Route path="keuangan-rt/:groupId" element={<GroupFinanceDetailPage />} /> */}
-                  <Route path="transaksi-rt/:id" element={<TransactionDetailPage />} />
                 </Route>
 
                 {/* Hanya TREASURER (Bendahara) yang bisa buka ini */}
@@ -145,8 +140,6 @@ function App() {
                   {/* 👇 TAMBAHKAN INI UNTUK BENDAHARA RW MELIHAT DETAIL RT 👇 */}
                   <Route path="detail-progres-bendahara/:groupId" element={<PaymentPage />} />
                   
-                  <Route path="pembayaran-bendahara/:id" element={<PaymentDetailPage />} />
-                  <Route path="transaksi-bendahara/:id" element={<TransactionDetailPage />} />
                   {/* <Route path="keuangan-rt/:groupId" element={<GroupFinanceDetailPage />} /> */}
                   <Route path="progres-iuran-bendahara" element={<GroupDuesProgressPage />} />
                   <Route path="progres-iuran-bendahara/:groupId" element={<GroupDuesProgressPage />} />
@@ -173,6 +166,11 @@ function App() {
                   <Route path="keuangan-rt/:groupId" element={<GroupFinanceDetailPage />} />
                 </Route>
 
+                {/* Detail Transaksi — Accessible by ALL roles */}
+                <Route element={<RoleProtectedRoute allowedRoles={["LEADER", "ADMIN", "TREASURER", "RESIDENT"]} />}>
+                  <Route path="transaksi/:id" element={<TransactionDetailPage />} />
+                </Route>
+
                 {/* Detail Pengajuan Dana — ADMIN dan TREASURER */}
                 <Route element={<RoleProtectedRoute allowedRoles={["ADMIN", "TREASURER"]} />}>
                   <Route path="pengajuan-dana/:id" element={<FundRequestDetailPage />} />
@@ -190,7 +188,6 @@ function App() {
                   <Route path="kegiatan-warga" element={<EventsPage />} />
                   <Route path="events-warga/:id" element={<EventDetailPage />} />
                   <Route path="pembayaran-warga" element={<ResidentPaymentPage />} />
-                  <Route path="pembayaran-warga/:id" element={<PaymentDetailPage />} />
                 </Route>
 
                 {/* Profil bisa dibuka oleh SEMUA role yang sudah login */}

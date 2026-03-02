@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -54,6 +54,9 @@ import { TransactionTable, FundRequestTable, ChildrenWalletsSection } from "@/fe
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { DateRangeFilter } from "@/shared/components/DateRangeFilter";
 import type { DateRange } from "@/shared/components/DateRangeFilter";
+import { markAsSeen } from "@/shared/helpers/seenPagesStore";
+import { invalidateBadgeCache } from "@/shared/hooks/useBadgeNotifications";
+import { emitSidebarUpdate } from "@/shared/helpers/sidebarEvents";
 
 // === HELPERS ===
 
@@ -131,7 +134,13 @@ export default function FinancePage() {
   // Role-aware paths
   const showDuesConfig = userRole !== "TREASURER";
   const duesConfigPath = userRole === "ADMIN" ? "/dashboard/pengaturan-iuran" : "/dashboard/pengaturan-iuran";
-  
+
+  // Track "new since last visit" — set on mount before fetching
+  const prevFinanceSeenAtRef = useRef<number | null>(null);
+
+  // Transaction detail path (single shared route for all roles)
+  const txDetailPrefix = "transaksi";
+
   // === UBAH BAGIAN INI ===
   // Sekarang Treasurer, Admin, dan Leader akan sama-sama diarahkan ke /dashboard/keuangan-rt
   const childrenBasePath = "/dashboard/keuangan-rt"; 
@@ -141,6 +150,11 @@ export default function FinancePage() {
   const showChildrenWallets = isRwLevel || isRwTreasurer;
 
   useEffect(() => {
+    // Mark this page as seen so badge clears immediately
+    prevFinanceSeenAtRef.current = markAsSeen("finance");
+    invalidateBadgeCache();
+    emitSidebarUpdate();
+
     fetchData();
     if (canCreateFundRequest) fetchEvents();
     if (showDuesConfig) {
@@ -551,7 +565,11 @@ export default function FinancePage() {
             </Card>
           ) : (
             <Card>
-              <TransactionTable transactions={filteredTx} />
+              <TransactionTable
+                transactions={filteredTx}
+                onRowClick={(tx) => navigate(`/dashboard/${txDetailPrefix}/${tx.id}`)}
+                newSinceMs={prevFinanceSeenAtRef.current}
+              />
             </Card>
           )}
         </TabsContent>

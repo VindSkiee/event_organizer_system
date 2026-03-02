@@ -418,17 +418,19 @@ export class PaymentService {
     // 1. HITUNG TAGIHAN
     const bill = await this.duesService.getMyBill(user);
 
-    if (bill.totalAmount <= 0) {
-      throw new BadRequestException('Tidak ada tagihan iuran yang perlu dibayar saat ini.');
+    // Guard: dues rules must be configured (baseMonthlyAmount includes RT + RW rates)
+    if (bill.baseMonthlyAmount <= 0) {
+      throw new BadRequestException('Aturan iuran belum dikonfigurasi. Hubungi pengurus.');
     }
 
     // 2. GENERATE ORDER ID BARU (Versi Pendek agar tidak error Midtrans)
     const shortUserId = user.id.split('-')[0]; 
     const orderId = `DUES-${shortUserId}-${Date.now()}`;
 
-    // 3. PENTING: Pastikan semua amount adalah integer, dan kalikan dengan bulan
-    const grossAmount = Math.round(bill.totalAmount * validMonths);
-    const itemDetails = bill.breakdown.map((item) => ({
+    // 3. Gross amount = base monthly rate × months requested by user
+    //    (NOT bill.totalAmount which already includes unpaid-months multiplier)
+    const grossAmount = Math.round(bill.baseMonthlyAmount * validMonths);
+    const itemDetails = bill.baseBreakdown.map((item) => ({
       id: `ITEM-${item.type}`,
       price: Math.round(item.amount * validMonths),
       quantity: 1,

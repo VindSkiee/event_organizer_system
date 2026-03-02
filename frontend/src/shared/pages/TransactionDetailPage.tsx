@@ -10,6 +10,9 @@ import { Button } from "@/shared/ui/button";
 import { Separator } from "@/shared/ui/separator";
 import {
   ArrowLeft,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Building2,
   CheckCircle2,
   Clock,
   XCircle,
@@ -25,8 +28,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { financeService } from "@/features/finance/services/financeService";
 import { paymentService } from "@/features/payment/services/paymentService";
-import type { PaymentItem } from "@/shared/types";
+import type { TransactionDetail } from "@/shared/types";
 
 // === HELPERS ===
 
@@ -166,29 +170,38 @@ function getMonthRangeLabel(
   const isFullYear = monthCount === 12;
   const startLabel = `${MONTH_NAMES_ID[startMonth - 1]} ${startYear}`;
   const endLabel = `${MONTH_NAMES_ID[endMonth - 1]} ${endYear}`;
-  const rangeLabel = monthCount === 1 ? startLabel : `${startLabel} – ${endLabel}`;
+  // Same year: omit year from start label for brevity
+  const rangeLabel = monthCount === 1
+    ? startLabel
+    : endYear === startYear
+      ? `${MONTH_NAMES_ID[startMonth - 1]} – ${endLabel}`
+      : `${startLabel} – ${endLabel}`;
   return { rangeLabel, isFullYear };
+}
+
+function isIncome(type: string) {
+  return type === "INCOME" || type === "CREDIT";
 }
 
 // === MAIN COMPONENT ===
 
-export default function PaymentDetailPage() {
+export default function TransactionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [payment, setPayment] = useState<PaymentItem | null>(null);
+  const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
-  const fetchPayment = useCallback(async () => {
+  const fetchDetail = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await paymentService.getPaymentDetails(id);
-      setPayment(data);
+      const data = await financeService.getTransactionDetail(id);
+      setDetail(data);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal memuat detail pembayaran";
+      const message = err instanceof Error ? err.message : "Gagal memuat detail transaksi";
       setError(message);
       toast.error(message);
     } finally {
@@ -197,17 +210,17 @@ export default function PaymentDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    fetchPayment();
-  }, [fetchPayment]);
+    fetchDetail();
+  }, [fetchDetail]);
 
   const handleSyncStatus = async () => {
-    if (!payment?.orderId) return;
+    if (!detail?.paymentGatewayTx?.orderId) return;
     setSyncing(true);
     try {
-      const result = await paymentService.syncPayment(payment.orderId);
+      const result = await paymentService.syncPayment(detail.paymentGatewayTx.orderId);
       if (result.updated) {
         toast.success(`Status diperbarui: ${result.status}`);
-        await fetchPayment(); // Reload data terbaru
+        await fetchDetail();
       } else {
         toast.info(result.message || "Pembayaran masih pending di Midtrans.");
       }
@@ -245,7 +258,7 @@ export default function PaymentDetailPage() {
   }
 
   // === ERROR / NOT FOUND STATE ===
-  if (error || !payment) {
+  if (error || !detail) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
         <ArrowLeft className="h-4 w-4 mr-1" onClick={goBack} />
@@ -256,10 +269,10 @@ export default function PaymentDetailPage() {
               Transaksi Tidak Ditemukan
             </p>
             <p className="text-sm text-slate-400 mt-1 max-w-sm">
-              {error || "Data pembayaran yang Anda cari tidak tersedia atau Anda tidak memiliki akses."}
+              {error || "Data transaksi yang Anda cari tidak tersedia atau Anda tidak memiliki akses."}
             </p>
             <Button variant="outline" size="sm" className="mt-4" onClick={goBack}>
-              Kembali ke Pembayaran
+              Kembali
             </Button>
           </CardContent>
         </Card>
@@ -267,8 +280,35 @@ export default function PaymentDetailPage() {
     );
   }
 
-  const status = getStatusConfig(payment.status);
-  const StatusIcon = status.icon;
+  const pgTx = detail.paymentGatewayTx;
+  const hasPaymentGateway = !!pgTx;
+  const income = isIncome(detail.type);
+
+  // The transaction's own amount (may be a split portion of the full resident payment)
+  const txAmount = Math.abs(detail.amount);
+  // Total paid by resident via gateway (may differ from txAmount for split dues transactions)
+  const gatewayAmount = pgTx?.amount ?? txAmount;
+
+  // Detect if this is a split-dues transaction (RT + RW distribution)
+  const isSplitDues = hasPaymentGateway && Math.round(gatewayAmount) !== Math.round(txAmount);
+
+  // If the current logged-in user IS the payer (RESIDENT viewing their own payment),
+  // always show the full gateway amount — they want to see what they paid, not the internal split.
+  const currentUserId = (() => {
+    try { return (JSON.parse(localStorage.getItem("user") || "{}") as { id?: string }).id ?? null; }
+    catch { return null; }
+  })();
+  const isOwnPayment = !!pgTx?.user?.id && currentUserId === pgTx.user.id;
+
+  // Primary display amount: full payment for payer/PENDING, wallet portion for staff
+  const displayAmount = (isOwnPayment || !isSplitDues) ? gatewayAmount : txAmount;
+
+  // For gateway transactions, use payment status; for manual, no gradient banner
+  const status = pgTx ? getStatusConfig(pgTx.status) : null;
+  const StatusIcon = status?.icon || CheckCircle2;
+
+  // Determine the payer info — prefer paymentGatewayTx.user, fallback to contribution.user, then createdBy
+  const payer = pgTx?.user || detail.contribution?.user || detail.createdBy;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-2xl mx-auto">
@@ -283,25 +323,71 @@ export default function PaymentDetailPage() {
       </div>
 
       {/* Status Banner */}
-      <Card className={`bg-gradient-to-r overflow-hidden ${status.gradient}`}>
-        <div className="p-6 text-white">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-              <StatusIcon className="h-6 w-6 text-white" />
+      {hasPaymentGateway && status ? (
+        <Card className={`bg-gradient-to-r overflow-hidden ${status.gradient}`}>
+          <div className="p-6 text-white">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                <StatusIcon className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold font-poppins">{status.label}</h2>
+                <p className="text-sm text-white/80">{status.description}</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold font-poppins">{status.label}</h2>
-              <p className="text-sm text-white/80">{status.description}</p>
+            <div className="mt-4 text-center">
+              <p className="text-sm text-white/70 uppercase tracking-wide">
+                {(isSplitDues && !isOwnPayment) ? "Dana Masuk ke Kas" : "Jumlah Pembayaran"}
+              </p>
+              <p className="text-3xl sm:text-4xl font-bold font-poppins mt-1">
+                {formatRupiah(displayAmount)}
+              </p>
+              {(isSplitDues && !isOwnPayment) && (
+                <p className="text-sm text-white/70 mt-1">
+                  Total dibayar warga: {formatRupiah(gatewayAmount)}
+                </p>
+              )}
             </div>
           </div>
-          <div className="mt-4 text-center">
-            <p className="text-sm text-white/70 uppercase tracking-wide">Jumlah Pembayaran</p>
-            <p className="text-3xl sm:text-4xl font-bold font-poppins mt-1">
-              {formatRupiah(Number(payment.amount))}
-            </p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      ) : (
+        /* Manual / Non-gateway Transaction — income/expense banner */
+        <Card
+          className={`border-l-4 ${
+            income ? "border-l-emerald-500" : "border-l-red-500"
+          }`}
+        >
+          <CardContent className="py-6">
+            <div className="flex items-center gap-4">
+              <div
+                className={`h-14 w-14 rounded-xl flex items-center justify-center ${
+                  income ? "bg-emerald-100" : "bg-red-100"
+                }`}
+              >
+                {income ? (
+                  <ArrowDownLeft className="h-7 w-7 text-emerald-600" />
+                ) : (
+                  <ArrowUpRight className="h-7 w-7 text-red-600" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">
+                  {income ? "Pemasukan" : "Pengeluaran"}
+                </p>
+                <p
+                  className={`text-3xl sm:text-4xl font-bold ${
+                    income ? "text-emerald-600" : "text-red-600"
+                  }`}
+                >
+                  {income ? "+" : "-"}
+                  {formatRupiah(Math.abs(detail.amount))}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">{detail.description}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Transaction Details */}
       <Card>
@@ -314,57 +400,85 @@ export default function PaymentDetailPage() {
 
           <Separator />
 
-
           {/* User Info */}
-          {payment.user && (
+          {payer && (
             <>
-
               <div className="flex items-center gap-2.5">
                 <User className="h-4 w-4 text-slate-400 shrink-0" />
                 <div>
                   <p className="text-xs text-slate-500">Pembayar</p>
-                  <p className="text-sm font-medium text-slate-900">{payment.user.fullName}</p>
-                  <p className="text-xs text-slate-400">{payment.user.email}</p>
+                  <p className="text-sm font-medium text-slate-900">{payer.fullName}</p>
+                  <p className="text-xs text-slate-400">{payer.email}</p>
                 </div>
               </div>
             </>
           )}
 
           {/* Status */}
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck className="h-4 w-4 text-slate-400 shrink-0" />
-            <div>
-              <p className="text-xs text-slate-500">Status</p>
-              <Badge variant={status.variant} className={`mt-0.5 ${(status as { badgeClassName?: string }).badgeClassName ?? ""}`}>
-                {status.label}
-              </Badge>
+          {hasPaymentGateway && status ? (
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="h-4 w-4 text-slate-400 shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500">Status</p>
+                <Badge variant={status.variant} className={`mt-0.5 ${(status as { badgeClassName?: string }).badgeClassName ?? ""}`}>
+                  {status.label}
+                </Badge>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="h-4 w-4 text-slate-400 shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500">Tipe</p>
+                <Badge variant={income ? "default" : "destructive"} className="mt-0.5">
+                  {income ? "Pemasukan" : "Pengeluaran"}
+                </Badge>
+              </div>
+            </div>
+          )}
 
           {/* Amount */}
           <div className="flex items-center gap-2.5">
             <Wallet className="h-4 w-4 text-slate-400 shrink-0" />
             <div>
-              <p className="text-xs text-slate-500">Jumlah</p>
-              <p className="text-sm font-semibold text-slate-900">{formatRupiah(Number(payment.amount))}</p>
-              {payment.grossAmount && Number(payment.grossAmount) !== Number(payment.amount) && (
+              <p className="text-xs text-slate-500">
+                {(isSplitDues && !isOwnPayment) ? "Dana Masuk ke Kas" : "Jumlah"}
+              </p>
+              <p className="text-sm font-semibold text-slate-900">{formatRupiah(displayAmount)}</p>
+              {(isSplitDues && !isOwnPayment) && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Total dibayar warga: <span className="font-medium text-slate-700">{formatRupiah(gatewayAmount)}</span>
+                </p>
+              )}
+              {pgTx && pgTx.grossAmount && Math.round(pgTx.grossAmount) !== Math.round(gatewayAmount) && (
                 <p className="text-xs text-slate-400">
-                  Gross: {formatRupiah(Number(payment.grossAmount))}
+                  Gross: {formatRupiah(pgTx.grossAmount)}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Periode Iuran — only for DUES payments */}
-          {payment.orderId.startsWith("DUES-") && (() => {
-            // Case 1: contribution data available (PAID) — most accurate
-            if (payment.contribution) {
-              const mc = payment.monthCount && payment.monthCount > 1
-                ? payment.monthCount
-                : Math.max(1, Math.round(Number(payment.amount) / Number(payment.contribution.amount)));
+          {/* Destination group for split dues */}
+          {(isSplitDues && !isOwnPayment) && detail.group && (
+            <div className="flex items-center gap-2.5">
+              <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500">Destinasi Kas</p>
+                <p className="text-sm font-medium text-slate-900">{detail.group.name}</p>
+                <p className="text-xs text-slate-400">{detail.description}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Periode Iuran — for DUES payments */}
+          {pgTx && pgTx.orderId.startsWith("DUES-") && (() => {
+            const mc = pgTx.monthCount ?? 1;
+
+            // PAID: contribution is set (first month linked to this pgTx)
+            if (pgTx.contribution) {
               const { rangeLabel, isFullYear } = getMonthRangeLabel(
-                payment.contribution.month,
-                payment.contribution.year,
+                pgTx.contribution.month,
+                pgTx.contribution.year,
                 mc,
               );
               return (
@@ -385,34 +499,50 @@ export default function PaymentDetailPage() {
                 </div>
               );
             }
-            // Case 2: monthCount available (PENDING — not yet distributed)
-            if (payment.monthCount && payment.monthCount > 0) {
-              return (
-                <div className="flex items-start gap-2.5">
-                  <CalendarDays className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-slate-500">Periode Iuran</p>
-                    <p className="text-sm font-semibold text-slate-900">{payment.monthCount} bulan</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Periode akan dikonfirmasi setelah pembayaran selesai.</p>
-                  </div>
+
+            // PENDING: no contribution yet — show month count only
+            return (
+              <div className="flex items-start gap-2.5">
+                <CalendarDays className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs text-slate-500">Periode Iuran</p>
+                  <p className="text-sm font-semibold text-slate-900">{mc} bulan</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Periode dikonfirmasi setelah pembayaran selesai.</p>
                 </div>
-              );
-            }
-            return null;
+              </div>
+            );
+          })()}
+
+          {/* Contribution period for non-gateway transactions */}
+          {!pgTx && detail.contribution && (() => {
+            const { rangeLabel } = getMonthRangeLabel(
+              detail.contribution.month,
+              detail.contribution.year,
+              1,
+            );
+            return (
+              <div className="flex items-start gap-2.5">
+                <CalendarDays className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs text-slate-500">Periode Iuran</p>
+                  <p className="text-sm font-semibold text-slate-900">{rangeLabel}</p>
+                </div>
+              </div>
+            );
           })()}
 
           <Separator />
 
           {/* Payment Method */}
-          {payment.methodCategory && (
+          {pgTx?.methodCategory && (
             <div className="flex items-center gap-2.5">
               <CreditCard className="h-4 w-4 text-slate-400 shrink-0" />
               <div>
                 <p className="text-xs text-slate-500">Metode Pembayaran</p>
                 <p className="text-sm font-medium text-slate-900">
-                  {getMethodLabel(payment.methodCategory)}
-                  {payment.providerCode && (
-                    <span className="text-slate-500"> — {getProviderLabel(payment.providerCode)}</span>
+                  {getMethodLabel(pgTx.methodCategory)}
+                  {pgTx.providerCode && (
+                    <span className="text-slate-500"> — {getProviderLabel(pgTx.providerCode)}</span>
                   )}
                 </p>
               </div>
@@ -420,20 +550,20 @@ export default function PaymentDetailPage() {
           )}
 
           {/* VA Number */}
-          {payment.vaNumber && (
+          {pgTx?.vaNumber && (
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 min-w-0">
                 <CreditCard className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-xs text-slate-500">Nomor Virtual Account</p>
-                  <p className="text-sm font-mono font-medium text-slate-900 break-all">{payment.vaNumber}</p>
+                  <p className="text-sm font-mono font-medium text-slate-900 break-all">{pgTx.vaNumber}</p>
                 </div>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0"
-                onClick={() => copyToClipboard(payment.vaNumber!, "No. VA")}
+                onClick={() => copyToClipboard(pgTx.vaNumber!, "No. VA")}
               >
                 <Copy className="h-3.5 w-3.5" />
               </Button>
@@ -441,44 +571,46 @@ export default function PaymentDetailPage() {
           )}
 
           {/* Midtrans Transaction ID */}
-          {payment.midtransId && (
+          {pgTx?.midtransId && (
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 min-w-0">
                 <ExternalLink className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-xs text-slate-500">Midtrans Transaction ID</p>
-                  <p className="text-sm font-medium text-black break-all">{payment.midtransId}</p>
+                  <p className="text-sm font-medium text-black break-all">{pgTx.midtransId}</p>
                 </div>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0"
-                onClick={() => copyToClipboard(payment.midtransId!, "Transaction ID")}
+                onClick={() => copyToClipboard(pgTx.midtransId!, "Transaction ID")}
               >
                 <Copy className="h-3.5 w-3.5" />
               </Button>
             </div>
           )}
-          {/* Order ID */}
-          <div className="flex items-start justify-between gap-3">
 
-            <div className="flex items-start gap-2.5 min-w-0">
-              <Hash className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-slate-500">Order ID</p>
-                <p className="text-sm font-medium text-slate-900 break-all">{payment.orderId}</p>
+          {/* Order ID */}
+          {pgTx && (
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <Hash className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-500">Order ID</p>
+                  <p className="text-sm font-medium text-slate-900 break-all">{pgTx.orderId}</p>
+                </div>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => copyToClipboard(pgTx.orderId, "Order ID")}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() => copyToClipboard(payment.orderId, "Order ID")}
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          )}
 
           <Separator />
 
@@ -487,26 +619,25 @@ export default function PaymentDetailPage() {
             <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
             <div>
               <p className="text-xs text-slate-500">Tanggal Transaksi</p>
-              <p className="text-sm font-medium text-slate-900">{formatDateTime(payment.createdAt)}</p>
+              <p className="text-sm font-medium text-slate-900">{formatDateTime(detail.createdAt)}</p>
             </div>
           </div>
 
-          {payment.paidAt && (
+          {pgTx?.paidAt && (
             <div className="flex items-center gap-2.5">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
               <div>
                 <p className="text-xs text-slate-500">Tanggal Pembayaran</p>
-                <p className="text-sm font-medium text-emerald-700">{formatDateTime(payment.paidAt)}</p>
+                <p className="text-sm font-medium text-emerald-700">{formatDateTime(pgTx.paidAt)}</p>
               </div>
             </div>
           )}
-
 
         </CardContent>
       </Card>
 
       {/* Action Button — Resume payment if PENDING */}
-      {payment.status === "PENDING" && (
+      {pgTx && pgTx.status === "PENDING" && status && (
         <Card className={`${status.border} ${status.bg}`}>
           <CardContent className="py-4 px-5 space-y-3">
             <div className="flex items-start gap-2.5">
@@ -531,11 +662,11 @@ export default function PaymentDetailPage() {
                 {syncing ? "Mengecek..." : "Cek Status Pembayaran"}
               </Button>
               {/* Resume payment button */}
-              {payment.redirectUrl && (
+              {pgTx.redirectUrl && (
                 <Button
                   size="sm"
                   className="bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={() => window.open(payment.redirectUrl!, "_blank")}
+                  onClick={() => window.open(pgTx.redirectUrl!, "_blank")}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Lanjutkan Bayar
@@ -547,10 +678,12 @@ export default function PaymentDetailPage() {
       )}
 
       {/* Footer Note */}
-      <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pb-4">
-        <ShieldCheck className="h-3.5 w-3.5" />
-        <span>Pembayaran diproses secara aman melalui Midtrans</span>
-      </div>
+      {hasPaymentGateway && (
+        <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pb-4">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          <span>Pembayaran diproses secara aman melalui Midtrans</span>
+        </div>
+      )}
     </div>
   );
 }

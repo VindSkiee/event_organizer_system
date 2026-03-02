@@ -8,6 +8,9 @@ import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
+import { markAsSeen } from "@/shared/helpers/seenPagesStore";
+import { invalidateBadgeCache } from "@/shared/hooks/useBadgeNotifications";
+import { emitSidebarUpdate } from "@/shared/helpers/sidebarEvents";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import {
   CreditCard,
   Search,
@@ -34,6 +38,8 @@ import {
   QrCode,
   RefreshCw,
   Check,
+  WalletCards,
+  ReceiptText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { financeService } from "@/features/finance/services/financeService";
@@ -162,6 +168,12 @@ export default function ResidentPaymentPage() {
   const [selectedMonthCount, setSelectedMonthCount] = useState(1);
   const payingRef = useRef(false); // Prevent double-click
   const [filterTab, setFilterTab] = useState<"today" | "all">("today");
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  // Countdown seconds until next auto-poll (0 = polling inactive)
+  const [pollCountdown, setPollCountdown] = useState(0);
+
+  // Track "new since last visit" — captured before mark-as-seen so we can show badges
+  const prevPaymentSeenAtRef = useRef<number | null>(null);
 
   const fetchBill = useCallback(async () => {
     try {
@@ -186,6 +198,11 @@ export default function ResidentPaymentPage() {
   }, []);
 
   useEffect(() => {
+    // Mark page as seen immediately so sidebar badge clears
+    prevPaymentSeenAtRef.current = markAsSeen("payment");
+    invalidateBadgeCache();
+    emitSidebarUpdate();
+
     const init = async () => {
       setLoading(true);
       await Promise.allSettled([fetchBill(), fetchPayments()]);
@@ -195,6 +212,68 @@ export default function ResidentPaymentPage() {
     // Preload Midtrans Snap
     loadMidtransSnap().catch(() => { });
   }, [fetchBill, fetchPayments]);
+
+  // Derived: find any pending DUES payment for polling & UI
+  const pendingPayment = payments.find((p) => p.status === "PENDING" && p.orderId.startsWith("DUES-"));
+  const hasPendingPayment = !!pendingPayment;
+
+  // === AUTO-POLLING dengan countdown: 1 tick/detik, poll setiap POLL_SECONDS ===
+  const POLL_SECONDS = 5;
+
+  useEffect(() => {
+    if (!hasPendingPayment || !pendingPayment) {
+      setPollCountdown(0);
+      return;
+    }
+
+    const orderId = pendingPayment.orderId;
+    let secondsLeft = POLL_SECONDS;
+    let stopped = false;
+    setPollCountdown(POLL_SECONDS);
+
+    const tickId = setInterval(async () => {
+      if (stopped) return;
+      secondsLeft -= 1;
+
+      if (secondsLeft <= 0) {
+        // Waktu poll — reset countdown dulu, lalu cek backend
+        secondsLeft = POLL_SECONDS;
+        setPollCountdown(POLL_SECONDS);
+        try {
+          const result = await paymentService.syncPayment(orderId);
+          if (!result.updated) return; // masih PENDING, lanjut polling
+
+          const status = (result.status ?? "").toUpperCase();
+          if (status === "PAID" || status === "SETTLEMENT") {
+            stopped = true;
+            clearInterval(tickId);
+            setPollCountdown(0);
+            setShowSuccessPopup(true);
+            await Promise.allSettled([fetchPayments(), fetchBill()]);
+            invalidateBadgeCache();
+            emitSidebarUpdate();
+          } else if (["EXPIRED", "CANCELLED", "FAILED"].includes(status)) {
+            stopped = true;
+            clearInterval(tickId);
+            setPollCountdown(0);
+            toast.info(`Status pembayaran: ${result.status}`);
+            await Promise.allSettled([fetchPayments(), fetchBill()]);
+          }
+        } catch {
+          // Silent — hiccup jaringan, coba lagi di tick berikutnya
+        }
+      } else {
+        setPollCountdown(secondsLeft);
+      }
+    }, 1_000);
+
+    return () => {
+      stopped = true;
+      clearInterval(tickId);
+      setPollCountdown(0);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPendingPayment, pendingPayment?.orderId]);
 
   // Reset month selection whenever bill data changes
   useEffect(() => {
@@ -298,23 +377,24 @@ export default function ResidentPaymentPage() {
 
       // 3. Open Midtrans Snap popup
       window.snap?.pay(result.token, {
-        onSuccess: () => {
-          toast.success("Pembayaran berhasil!");
-          navigate("/dashboard/warga?payment=success", { replace: true });
+        onSuccess: async () => {
+          // Refresh data; popup sukses akan muncul via polling setelah status terkonfirmasi
+          await Promise.allSettled([fetchPayments(), fetchBill()]);
+          invalidateBadgeCache();
+          emitSidebarUpdate();
         },
-        onPending: () => {
-          toast.info("Pembayaran sedang diproses. Silakan selesaikan pembayaran Anda.");
-          fetchPayments();
-          fetchBill();
+        onPending: async () => {
+          toast.info("Pembayaran sedang diproses. Auto-polling akan memantau status.");
+          // Refresh agar state pendingPayment segera terisi → auto-polling aktif
+          await Promise.allSettled([fetchPayments(), fetchBill()]);
         },
-        onError: () => {
+        onError: async () => {
           toast.error("Pembayaran gagal. Silakan coba lagi.");
-          fetchPayments();
+          await fetchPayments();
         },
-        onClose: () => {
-          toast.info("Pembayaran dibatalkan.");
-          fetchPayments();
-          fetchBill();
+        onClose: async () => {
+          toast.info("Jendela pembayaran ditutup. Jika sudah membayar, status akan diperbarui otomatis.");
+          await Promise.allSettled([fetchPayments(), fetchBill()]);
         },
       });
     } catch (err: unknown) {
@@ -337,8 +417,6 @@ export default function ResidentPaymentPage() {
     !isFullYearPaid &&
     bill !== null &&
     bill.baseMonthlyAmount > 0;
-  const pendingPayment = payments.find((p) => p.status === "PENDING" && p.orderId.startsWith("DUES-"));
-  const hasPendingPayment = !!pendingPayment;
   const paidCount = payments.filter((p) => p.status === "PAID").length;
   const totalPaid = payments.filter((p) => p.status === "PAID").reduce((s, p) => s + Number(p.amount), 0);
 
@@ -383,6 +461,45 @@ export default function ResidentPaymentPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {/* ===== PAYMENT SUCCESS POPUP ===== */}
+      <Dialog open={showSuccessPopup} onOpenChange={setShowSuccessPopup}>
+        <DialogContent className="sm:max-w-sm p-0 overflow-hidden border-0">
+          <div className="bg-gradient-to-b from-emerald-50/80 to-white px-6 pt-10 pb-6 flex flex-col items-center text-center">
+            {/* Ikon Sukses dengan efek Glow */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-emerald-400 blur-xl opacity-30 rounded-full animate-pulse" />
+              <div className="relative h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center border-4 border-white shadow-sm">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600" strokeWidth={2.5} />
+              </div>
+            </div>
+            <DialogHeader className="space-y-1.5 flex flex-col items-center w-full">
+              <DialogTitle className="font-poppins text-2xl text-slate-900">
+                Pembayaran Berhasil!
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 text-sm max-w-[260px] mx-auto">
+                Terima kasih, iuran bulanan Anda telah berhasil dibayarkan dan tercatat di sistem.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="w-full border-t border-dashed border-slate-200 my-6" />
+            <div className="w-full bg-slate-50 rounded-xl p-3.5 mb-6 flex items-start gap-3 border border-slate-100 text-left">
+              <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-100 shrink-0">
+                <ReceiptText className="h-4 w-4 text-emerald-600" />
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed mt-0.5">
+                Bukti transaksi ini dapat Anda lihat kapan saja melalui menu{" "}
+                <span className="font-semibold text-slate-800">Riwayat Pembayaran</span> di bawah.
+              </p>
+            </div>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              onClick={() => setShowSuccessPopup(false)}
+            >
+              Selesai
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -464,7 +581,7 @@ export default function ResidentPaymentPage() {
             <div className="bg-slate-200 rounded-lg p-4 sm:p-5 border border-slate-100 mb-4">
               <p className="text-[10px] text-slate-600 uppercase tracking-widest mb-3">Rincian iuran / bulan</p>
               <div className="space-y-3">
-                {bill?.breakdown.map((item, idx) => (
+                {(bill?.baseBreakdown ?? bill?.breakdown ?? []).map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between">
                     <div>
                       <p className="text-sm sm:text-base font-medium text-slate-700">Iuran {item.type}</p>
@@ -605,6 +722,19 @@ export default function ResidentPaymentPage() {
                     <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
                       Sudah bayar tapi status masih pending? Klik tombol untuk memperbarui.
                     </p>
+                    {/* Polling countdown indicator */}
+                    {pollCountdown > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                        </span>
+                        <p className="text-[11px] text-amber-600 font-medium">
+                          Pengecekan otomatis dalam{" "}
+                          <span className="font-bold tabular-nums">{pollCountdown}s</span>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -696,10 +826,9 @@ export default function ResidentPaymentPage() {
       </div>
 
       {/* === PAYMENT HISTORY === */}
-      {/* === PAYMENT HISTORY === */}
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-5">
-          <div>
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-5">
+          <div className="shrink-0">
             <h2 className="text-lg font-semibold text-slate-900 font-poppins">Riwayat Pembayaran</h2>
             <p className="text-sm text-slate-500 mt-0.5">
               {filterTab === "today"
@@ -708,13 +837,14 @@ export default function ResidentPaymentPage() {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          {/* Baris Filter (Responsif stack di mobile, sejajar di layar besar) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
             {/* Tabs Pilihan */}
             <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto shrink-0">
               <button
                 onClick={() => {
                   setFilterTab("today");
-                  setDateRange(undefined); // Reset kalender saat ganti tab
+                  setDateRange(undefined);
                 }}
                 className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${filterTab === "today" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
@@ -730,15 +860,18 @@ export default function ResidentPaymentPage() {
               </button>
             </div>
 
-            {/* Filter Tanggal Khusus (Hanya muncul jika tab "Semua" dipilih) */}
+            {/* Filter Tanggal Khusus */}
             {filterTab === "all" && (
-              <DateRangeFilter
-                value={dateRange}
-                onChange={setDateRange}
-                placeholder="Filter tanggal"
-              />
+              <div className="w-full sm:w-auto">
+                <DateRangeFilter
+                  value={dateRange}
+                  onChange={setDateRange}
+                  placeholder="Filter tanggal"
+                />
+              </div>
             )}
 
+            {/* Input Pencarian */}
             <div className="relative w-full sm:w-64 shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
@@ -757,7 +890,7 @@ export default function ResidentPaymentPage() {
           </div>
         ) : filteredPayments.length === 0 ? (
           <Card className="border-dashed shadow-none bg-slate-50/50">
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <CardContent className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
                 <FileText className="h-6 w-6 text-slate-300" />
               </div>
@@ -780,52 +913,82 @@ export default function ResidentPaymentPage() {
             {filteredPayments.map((payment) => {
               const status = getStatusConfig(payment.status);
               const StatusIcon = status.icon;
+              const isNew = prevPaymentSeenAtRef.current != null &&
+                new Date(payment.createdAt).getTime() > prevPaymentSeenAtRef.current;
+
               return (
                 <Card
                   key={payment.id}
-                  className="cursor-pointer shadow-sm hover:shadow-md transition-all hover:border-primary/20 group overflow-hidden"
-                  onClick={() => navigate(`/dashboard/pembayaran-warga/${payment.id}`)}
+                  className="cursor-pointer shadow-sm hover:shadow-md transition-all hover:border-primary/30 group overflow-hidden"
+                  onClick={() => navigate(`/dashboard/transaksi/${payment.id}`)}
                 >
                   <CardContent className="p-0">
                     <div className="flex items-stretch">
                       {/* Status Color Accent Line */}
                       <div className={`w-1.5 shrink-0 ${payment.status === 'PAID' ? 'bg-emerald-500' :
-                        payment.status === 'PENDING' ? 'bg-amber-400' :
-                          payment.status === 'FAILED' ? 'bg-red-500' : 'bg-slate-300'
+                          payment.status === 'PENDING' ? 'bg-amber-400' :
+                            payment.status === 'FAILED' ? 'bg-red-500' : 'bg-slate-300'
                         }`}></div>
 
-                      <div className="flex-1 flex items-center gap-4 py-4 px-5">
-                        <div className={`h-10 w-10 rounded-xl ${status.bg} flex items-center justify-center shrink-0`}>
-                          <StatusIcon className={`h-5 w-5 ${status.color}`} />
-                        </div>
+                      {/* Flex Container Utama Card */}
+                      <div className="flex-1 p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
 
-                        <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        {/* Kiri/Atas: Icon dan Info Order */}
+                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                          {/* Icon Status */}
+                          <div className="relative shrink-0 mt-0.5 sm:mt-0">
+                            <div className={`h-10 w-10 sm:h-11 sm:w-11 rounded-xl ${status.bg} flex items-center justify-center`}>
+                              <StatusIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${status.color}`} />
+                            </div>
+                            {isNew && (
+                              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500 ring-2 ring-white"></span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Info Teks */}
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-primary transition-colors">
-                              {payment.orderId}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-xs text-slate-500">{formatDateTime(payment.createdAt)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-bold text-slate-900 truncate group-hover:text-primary transition-colors">
+                                {payment.orderId}
+                              </p>
+                              {isNew && (
+                                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 border border-sky-200 uppercase tracking-wide">
+                                  Baru
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                              <p className="text-xs text-slate-500">
+                                {formatDateTime(payment.createdAt)}
+                              </p>
                               {payment.methodCategory && (
-                                <>
-                                  <span className="text-slate-300">&bull;</span>
-                                  <p className="text-xs text-slate-500">{getMethodLabel(payment.methodCategory)}</p>
-                                </>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-slate-300 hidden sm:inline">&bull;</span>
+                                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 bg-slate-100 sm:bg-transparent px-1.5 py-0.5 sm:p-0 rounded-md">
+                                    {getMethodLabel(payment.methodCategory)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>
+                        </div>
 
-                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shrink-0 mt-1 sm:mt-0">
-                            <p className="text-sm sm:text-base font-bold text-slate-900 font-poppins tracking-tight">
-                              {formatRupiah(Number(payment.amount))}
-                            </p>
+                        {/* Kanan/Bawah: Nominal dan Status Badge */}
+                        <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-center gap-2 pt-3 sm:pt-0 border-t border-slate-100 sm:border-0 shrink-0">
+                          <p className="text-sm sm:text-base font-bold text-slate-900 font-poppins tracking-tight">
+                            {formatRupiah(Number(payment.amount))}
+                          </p>
+                          <div className="flex items-center gap-2">
                             <Badge variant={status.variant} className={`text-[10px] px-2 py-0 ${(status as { badgeClassName?: string }).badgeClassName ?? ""}`}>
                               {status.label}
                             </Badge>
+                            <ArrowRight className="h-4 w-4 text-slate-300 shrink-0 hidden sm:block group-hover:text-primary group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
 
-                        <ArrowRight className="h-4 w-4 text-slate-300 shrink-0 hidden sm:block group-hover:text-primary group-hover:translate-x-1 transition-all" />
                       </div>
                     </div>
                   </CardContent>
@@ -838,71 +1001,110 @@ export default function ResidentPaymentPage() {
 
       {/* === CONFIRM PAYMENT DIALOG === */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-poppins">
+            <AlertDialogTitle className="font-poppins text-xl">
               {hasPendingPayment
                 ? "Lanjutkan Pembayaran"
                 : selectedMonthCount > 1
-                  ? `Konfirmasi Pembayaran ${selectedMonthCount} Bulan`
+                  ? `Bayar ${selectedMonthCount} Bulan`
                   : "Konfirmasi Pembayaran"}
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              {hasPendingPayment ? (
-                <span className="block text-amber-600 font-medium">
-                  Anda memiliki pembayaran yang belum selesai. Klik lanjutkan untuk menyelesaikan pembayaran.
-                </span>
-              ) : (
-                <span className="block">
-                  Anda akan membayar iuran untuk{" "}
-                  <span className="font-semibold text-slate-900">{selectedMonthCount} bulan</span>
-                  :
-                </span>
-              )}
 
-              {!hasPendingPayment && monthGrid.months.filter((m) => m.isChecked).map((m) => (
-                <span key={m.month} className="flex items-center gap-2 text-sm">
-                  <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  <span className="text-slate-600">{m.label} {m.year}</span>
-                </span>
-              ))}
-
-              {!hasPendingPayment && (
-                <span className="block mt-1 pt-2 border-t">
-                  {bill?.breakdown.map((item, idx) => (
-                    <span key={idx} className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-slate-500">Iuran {item.type} × {selectedMonthCount}</span>
-                      <span className="font-medium text-slate-800">{formatRupiah(item.amount * selectedMonthCount)}</span>
-                    </span>
-                  ))}
-                </span>
-              )}
-
-              <span className="flex items-center justify-between text-base font-bold border-t pt-2">
-                <span className="text-slate-800">Total</span>
-                {/* 👇 GUNAKAN baseMonthlyAmount DI SINI 👇 */}
-                <span className="text-primary">
-                  {formatRupiah((bill?.baseMonthlyAmount || 0) * (hasPendingPayment ? 1 : selectedMonthCount))}
-                </span>
-              </span>
-
-              <span className="block mt-3 p-2 bg-slate-50 rounded-lg border">
-                <span className="flex items-center gap-2 text-xs text-slate-600">
-                  <QrCode className="h-3.5 w-3.5 text-emerald-500" />
-                  Pembayaran utama via <span className="font-semibold">QRIS</span> — scan dari e-wallet manapun
-                </span>
-              </span>
-
-              <span className="block text-xs text-slate-400 mt-2">
-                Anda akan diarahkan ke halaman pembayaran Midtrans yang aman.
-              </span>
+            {/* Deskripsi hanya untuk teks singkat */}
+            <AlertDialogDescription>
+              {hasPendingPayment
+                ? "Selesaikan transaksi Anda sebelumnya sebelum membuat yang baru."
+                : "Mohon periksa kembali rincian tagihan iuran Anda di bawah ini."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handlePayDues} className="bg-emerald-600 hover:bg-emerald-700">
-              <ShieldCheck className="h-4 w-4 mr-1" />
-              {hasPendingPayment ? "Lanjutkan Pembayaran" : "Bayar Sekarang"}
+
+          {/* === KONTEN UTAMA (Di luar Description agar HTML valid) === */}
+          <div className="py-2 space-y-4">
+            {hasPendingPayment ? (
+              <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+                <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  Anda memiliki jendela pembayaran yang belum diselesaikan. Klik lanjutkan untuk membuka kembali halaman pembayaran.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Box Daftar Bulan */}
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
+                    Iuran Bulan
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {monthGrid.months
+                      .filter((m) => m.isChecked)
+                      .map((m) => (
+                        <div key={m.month} className="flex items-center gap-2">
+                          <div className="h-4 w-4 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Check className="h-2.5 w-2.5 text-emerald-600" />
+                          </div>
+                          <span className="text-sm font-medium text-slate-700">
+                            {m.label} {m.year}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Rincian Tagihan (Breakdown) */}
+                <div className="px-1 space-y-2.5">
+                  {(bill?.baseBreakdown ?? bill?.breakdown ?? []).map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-500">Iuran {item.type} × {selectedMonthCount}</span>
+                      <span className="font-semibold text-slate-700">
+                        {formatRupiah(item.amount * selectedMonthCount)}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Total */}
+                  <div className="flex items-center justify-between pt-3 border-t border-dashed border-slate-200 mt-2">
+                    <span className="text-sm font-bold text-slate-900">Total Tagihan</span>
+                    <span className="text-lg font-bold text-primary">
+                      {formatRupiah((bill?.baseMonthlyAmount || 0) * (hasPendingPayment ? 1 : selectedMonthCount))}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Banner Info Pembayaran */}
+            <div className="flex items-center gap-3 p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+              <div className="p-2 bg-white rounded-lg shadow-sm border border-blue-50 shrink-0">
+                <QrCode className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-800">Mendukung QRIS & E-Wallet</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Diarahkan ke sistem Midtrans yang aman.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* === FOOTER === */}
+          <AlertDialogFooter className="mt-2">
+            <AlertDialogCancel className="border-slate-200 text-slate-600 hover:bg-slate-50">
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handlePayDues}
+              className="bg-primary hover:bg-primary/90 text-white shadow-sm"
+            >
+              {hasPendingPayment ? (
+                <>
+                  <WalletCards className="h-4 w-4 mr-2" />
+                  Lanjutkan Pembayaran
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  Bayar Sekarang
+                </>
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

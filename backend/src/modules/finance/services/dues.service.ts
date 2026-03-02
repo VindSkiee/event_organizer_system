@@ -160,11 +160,12 @@ export class DuesService {
       totalAmount,
       currency: 'IDR',
       breakdown,
+      baseBreakdown, // per-month rates (not multiplied by unpaidMonthsCount)
       dueDateDescription,
       nextBillMonth,
       nextBillYear,
       unpaidMonthsCount,
-      baseMonthlyAmount: baseMonthlyTotal // Opsional: Beritahu frontend tarif aslinya
+      baseMonthlyAmount: baseMonthlyTotal
     };
   }
 
@@ -245,6 +246,7 @@ export class DuesService {
           type: TransactionType.CREDIT,
           description: `Iuran Warga: ${user.fullName || user.email} (${monthsPaid} bulan)`,
           createdById: user.id, // Opsional: Siapa yang bayar
+          paymentGatewayTxId: paymentGatewayTxId || undefined,
         }
       });
     }
@@ -264,6 +266,7 @@ export class DuesService {
           type: TransactionType.CREDIT,
           description: `Setoran Iuran dari RT ${group.name} - Warga: ${user.fullName || user.email}`,
           createdById: user.id,
+          paymentGatewayTxId: paymentGatewayTxId || undefined,
         }
       });
     }

@@ -56,6 +56,7 @@ export class FinanceRepository {
       contributionId?: string; // Jika dari iuran warga
       eventId?: string;        // Jika terkait event
       createdById?: string;    // Siapa yang melakukan (jika manual)
+      paymentGatewayTxId?: string; // Jika terkait pembayaran Midtrans
     }
   ) {
     return tx.transaction.create({
@@ -66,7 +67,8 @@ export class FinanceRepository {
         description: data.description,
         contributionId: data.contributionId,
         eventId: data.eventId,
-        createdById: data.createdById
+        createdById: data.createdById,
+        paymentGatewayTxId: data.paymentGatewayTxId,
       }
     });
   }
@@ -82,16 +84,29 @@ export class FinanceRepository {
       orderBy: { createdAt: 'desc' },
       include: {
         event: { select: { title: true } },
-        createdBy: { select: { fullName: true } }, // Pembuat manual (Bendahara)
-        
-        // OPSIONAL TAPI SANGAT DIANJURKAN JIKA ADA RELASI KE CONTRIBUTION:
-        // Agar history menampilkan "Iuran Bulan X - Budi"
+        createdBy: { select: { fullName: true } },
         contribution: { 
           select: { 
             month: true, 
             year: true, 
             user: { select: { fullName: true } } 
           } 
+        },
+        paymentGatewayTx: {
+          select: {
+            id: true,
+            orderId: true,
+            status: true,
+            methodCategory: true,
+            providerCode: true,
+            vaNumber: true,
+            amount: true,
+            grossAmount: true,
+            monthCount: true,
+            paidAt: true,
+            createdAt: true,
+            user: { select: { fullName: true, email: true } },
+          }
         }
       }
     });
@@ -161,27 +176,83 @@ export class FinanceRepository {
   // ==========================================
   // 7. SINGLE TRANSACTION DETAIL
   // ==========================================
+
+  private get transactionDetailInclude() {
+    return {
+      wallet: {
+        include: {
+          communityGroup: { select: { id: true, name: true, type: true } },
+        },
+      },
+      event: { select: { id: true, title: true, status: true } },
+      createdBy: { select: { id: true, fullName: true, email: true } },
+      contribution: {
+        select: {
+          id: true,
+          month: true,
+          year: true,
+          amount: true,
+          paidAt: true,
+          user: { select: { id: true, fullName: true, email: true } },
+        },
+      },
+      paymentGatewayTx: {
+        select: {
+          id: true,
+          orderId: true,
+          userId: true,
+          status: true,
+          methodCategory: true,
+          providerCode: true,
+          vaNumber: true,
+          amount: true,
+          grossAmount: true,
+          monthCount: true,
+          midtransId: true,
+          redirectUrl: true,
+          paidAt: true,
+          createdAt: true,
+          user: { select: { id: true, fullName: true, email: true } },
+          contribution: { select: { month: true, year: true } },
+        },
+      },
+    } as const;
+  }
+
   async findTransactionById(id: string) {
     return this.prisma.transaction.findUnique({
       where: { id },
-      include: {
-        wallet: {
-          include: {
-            communityGroup: { select: { id: true, name: true, type: true } },
-          },
-        },
-        event: { select: { id: true, title: true, status: true } },
-        createdBy: { select: { id: true, fullName: true, email: true } },
-        contribution: {
-          select: {
-            id: true,
-            month: true,
-            year: true,
-            amount: true,
-            paidAt: true,
-            user: { select: { fullName: true, email: true } },
-          },
-        },
+      include: this.transactionDetailInclude,
+    });
+  }
+
+  async findTransactionByPaymentGatewayTxId(paymentGatewayTxId: string) {
+    return this.prisma.transaction.findFirst({
+      where: { paymentGatewayTxId },
+      include: this.transactionDetailInclude,
+    });
+  }
+
+  async findPaymentGatewayTxById(id: string) {
+    return this.prisma.paymentGatewayTx.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        orderId: true,
+        userId: true,
+        status: true,
+        methodCategory: true,
+        providerCode: true,
+        vaNumber: true,
+        amount: true,
+        grossAmount: true,
+        monthCount: true,
+        midtransId: true,
+        redirectUrl: true,
+        paidAt: true,
+        createdAt: true,
+        user: { select: { id: true, fullName: true, email: true } },
+        contribution: { select: { month: true, year: true } },
       },
     });
   }

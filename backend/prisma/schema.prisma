@@ -111,25 +111,28 @@ model Contribution {
 }
 
 model Transaction {
-  id             String          @id @default(uuid())
-  walletId       Int
-  amount         Decimal         @db.Decimal(15, 2)
-  type           TransactionType
-  description    String
-  referenceCode  String?
-  contributionId String?         @unique
-  eventId        String?
-  createdAt      DateTime        @default(now())
-  createdById    String?
-  contribution   Contribution?   @relation(fields: [contributionId], references: [id])
-  createdBy      User?           @relation(fields: [createdById], references: [id])
-  event          Event?          @relation(fields: [eventId], references: [id])
-  wallet         Wallet          @relation(fields: [walletId], references: [id])
+  id                 String            @id @default(uuid())
+  walletId           Int
+  amount             Decimal           @db.Decimal(15, 2)
+  type               TransactionType
+  description        String
+  referenceCode      String?
+  contributionId     String?           @unique
+  eventId            String?
+  paymentGatewayTxId String?
+  createdAt          DateTime          @default(now())
+  createdById        String?
+  contribution       Contribution?     @relation(fields: [contributionId], references: [id])
+  createdBy          User?             @relation(fields: [createdById], references: [id])
+  event              Event?            @relation(fields: [eventId], references: [id])
+  paymentGatewayTx   PaymentGatewayTx? @relation(fields: [paymentGatewayTxId], references: [id])
+  wallet             Wallet            @relation(fields: [walletId], references: [id])
 
   @@index([walletId, createdAt(sort: Desc)])
   @@index([eventId])
   @@index([type])
   @@index([createdById])
+  @@index([paymentGatewayTxId])
 }
 
 model Event {
@@ -256,6 +259,7 @@ model PaymentGatewayTx {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
   contribution   Contribution?
+  transactions   Transaction[]
   user           User                  @relation(fields: [userId], references: [id])
 
   @@index([userId])

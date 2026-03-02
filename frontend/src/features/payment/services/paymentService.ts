@@ -21,12 +21,6 @@ export const paymentService = {
     return response.data.data;
   },
 
-  /** Get payment details by paymentId */
-  getPaymentDetails: async (paymentId: string): Promise<PaymentItem> => {
-    const response = await api.get<ApiResponse<PaymentItem>>(`/payment/details/${paymentId}`);
-    return response.data.data;
-  },
-
   /** Get payment status by orderId */
   getPaymentStatus: async (orderId: string): Promise<{ dbStatus: PaymentItem; midtransStatus: unknown }> => {
     const response = await api.get<ApiResponse<{ dbStatus: PaymentItem; midtransStatus: unknown }>>(`/payment/status/${orderId}`);

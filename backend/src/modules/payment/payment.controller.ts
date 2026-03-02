@@ -80,14 +80,6 @@ export class PaymentController {
     return this.paymentService.getTransactionStatus(orderId, user);
   }
 
-  @Get('details/:paymentId')
-  async getPaymentDetails(
-    @ActiveUser() user: ActiveUserData, 
-    @Param('paymentId') paymentId: string
-  ) {
-    return this.paymentService.getPaymentDetails(paymentId, user);
-  }
-
   @Post('cancel/:orderId')
   async cancelTransaction(
     @ActiveUser() user: ActiveUserData, 

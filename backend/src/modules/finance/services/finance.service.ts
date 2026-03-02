@@ -288,12 +288,21 @@ export class FinanceService {
       amount: Number(tx.amount), // <--- INI KUNCI UTAMANYA
       description: tx.description,
       createdAt: tx.createdAt,
-      // Jika Anda punya saldo (balanceAfter), pastikan di-convert juga:
-      // balanceAfter: Number(tx.balanceAfter), 
       
       // Ambil relasi (optional chaining untuk menghindari error jika null)
       eventName: tx.event?.title || null,
       adminName: tx.createdBy?.fullName || 'Sistem',
+      
+      // Payment Gateway info (jika transaksi berasal dari Midtrans)
+      paymentGatewayTx: tx.paymentGatewayTx ? {
+        id: tx.paymentGatewayTx.id,
+        orderId: tx.paymentGatewayTx.orderId,
+        status: tx.paymentGatewayTx.status,
+        methodCategory: tx.paymentGatewayTx.methodCategory,
+        providerCode: tx.paymentGatewayTx.providerCode,
+        amount: Number(tx.paymentGatewayTx.amount),
+        paidAt: tx.paymentGatewayTx.paidAt,
+      } : null,
     }));
   }
 
@@ -411,6 +420,16 @@ export class FinanceService {
         createdAt: tx.createdAt,
         createdBy: tx.createdBy?.fullName || null,
         event: tx.event?.title || null,
+        paymentGatewayTx: tx.paymentGatewayTx ? {
+          id: tx.paymentGatewayTx.id,
+          orderId: tx.paymentGatewayTx.orderId,
+          status: tx.paymentGatewayTx.status,
+          methodCategory: tx.paymentGatewayTx.methodCategory,
+          providerCode: tx.paymentGatewayTx.providerCode,
+          amount: Number(tx.paymentGatewayTx.amount),
+          monthCount: tx.paymentGatewayTx.monthCount,
+          paidAt: tx.paymentGatewayTx.paidAt,
+        } : null,
       })),
     };
   }
@@ -419,26 +438,79 @@ export class FinanceService {
   // 9. TRANSACTION DETAIL (Detail 1 transaksi)
   // ==========================================
   async getTransactionDetail(transactionId: string, user: ActiveUserData) {
-    const tx = await this.financeRepo.findTransactionById(transactionId);
-    if (!tx) throw new NotFoundException('Transaksi tidak ditemukan');
+    // Try finding by Transaction ID first, then by PaymentGatewayTx ID
+    let tx = await this.financeRepo.findTransactionById(transactionId);
+    if (!tx) {
+      tx = await this.financeRepo.findTransactionByPaymentGatewayTxId(transactionId);
+    }
+    // Fallback: PENDING payment — PaymentGatewayTx exists but no Transaction yet
+    if (!tx) {
+      const pgTx = await this.financeRepo.findPaymentGatewayTxById(transactionId);
+      if (!pgTx) throw new NotFoundException('Transaksi tidak ditemukan');
 
-    // Security check: user must be in same group hierarchy
+      // Security: RESIDENT can only see their own payment
+      if (user.roleType === 'RESIDENT' && pgTx.userId !== user.id) {
+        throw new ForbiddenException('Anda tidak memiliki akses ke transaksi ini');
+      }
+
+      // Build a synthetic response shape matching the transaction detail
+      return {
+        id: pgTx.id,
+        amount: Number(pgTx.amount),
+        type: 'INCOME' as const,
+        description: 'Pembayaran iuran (menunggu konfirmasi)',
+        createdAt: pgTx.createdAt,
+        group: null,
+        createdBy: pgTx.user,
+        event: null,
+        contribution: null,
+        paymentGatewayTx: {
+          id: pgTx.id,
+          orderId: pgTx.orderId,
+          status: pgTx.status,
+          methodCategory: pgTx.methodCategory,
+          providerCode: pgTx.providerCode,
+          vaNumber: pgTx.vaNumber,
+          amount: Number(pgTx.amount),
+          grossAmount: Number(pgTx.grossAmount),
+          monthCount: pgTx.monthCount,
+          midtransId: pgTx.midtransId,
+          redirectUrl: pgTx.redirectUrl,
+          paidAt: pgTx.paidAt,
+          createdAt: pgTx.createdAt,
+          user: pgTx.user,
+          contribution: pgTx.contribution ?? null,
+        },
+      };
+    }
+
+    // Security check: user must be in same group hierarchy OR be the payment owner (RESIDENT)
     const txGroupId = tx.wallet.communityGroup.id;
-    const userGroup = await this.prisma.communityGroup.findUnique({
-      where: { id: user.communityGroupId },
-      select: { type: true, parentId: true },
-    });
 
-    if (!userGroup) throw new ForbiddenException('Data pengguna tidak ditemukan');
+    // RESIDENT: can see their own payment transactions
+    if (user.roleType === 'RESIDENT') {
+      const isPaymentOwner = tx.paymentGatewayTx?.userId === user.id;
+      const isCreator = tx.createdById === user.id;
+      if (!isPaymentOwner && !isCreator) {
+        throw new ForbiddenException('Anda tidak memiliki akses ke transaksi ini');
+      }
+    } else {
+      // ADMIN/TREASURER/LEADER: check group hierarchy
+      const userGroup = await this.prisma.communityGroup.findUnique({
+        where: { id: user.communityGroupId },
+        select: { type: true, parentId: true },
+      });
 
-    const isOwner = user.communityGroupId === txGroupId;
-    const isParent = userGroup.type === 'RW';
-    const isSibling = userGroup.parentId != null;
+      if (!userGroup) throw new ForbiddenException('Data pengguna tidak ditemukan');
 
-    // LEADER (RW) can see any child's transactions
-    // ADMIN/TREASURER can see own group transactions
-    if (!isOwner && !isParent) {
-      throw new ForbiddenException('Anda tidak memiliki akses ke transaksi ini');
+      const isOwner = user.communityGroupId === txGroupId;
+      const isParent = userGroup.type === 'RW';
+
+      // LEADER (RW) can see any child's transactions
+      // ADMIN/TREASURER can see own group transactions
+      if (!isOwner && !isParent) {
+        throw new ForbiddenException('Anda tidak memiliki akses ke transaksi ini');
+      }
     }
 
     return {
@@ -458,6 +530,25 @@ export class FinanceService {
             amount: Number(tx.contribution.amount),
             paidAt: tx.contribution.paidAt,
             user: tx.contribution.user,
+          }
+        : null,
+      paymentGatewayTx: tx.paymentGatewayTx
+        ? {
+            id: tx.paymentGatewayTx.id,
+            orderId: tx.paymentGatewayTx.orderId,
+            status: tx.paymentGatewayTx.status,
+            methodCategory: tx.paymentGatewayTx.methodCategory,
+            providerCode: tx.paymentGatewayTx.providerCode,
+            vaNumber: tx.paymentGatewayTx.vaNumber,
+            amount: Number(tx.paymentGatewayTx.amount),
+            grossAmount: Number(tx.paymentGatewayTx.grossAmount),
+            monthCount: tx.paymentGatewayTx.monthCount,
+            midtransId: tx.paymentGatewayTx.midtransId,
+            redirectUrl: tx.paymentGatewayTx.redirectUrl,
+            paidAt: tx.paymentGatewayTx.paidAt,
+            createdAt: tx.paymentGatewayTx.createdAt,
+            user: tx.paymentGatewayTx.user,
+            contribution: tx.paymentGatewayTx.contribution ?? null,
           }
         : null,
     };

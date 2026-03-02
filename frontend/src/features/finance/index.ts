@@ -2,7 +2,6 @@
 export { default as FinancePage } from './pages/FinancePage';
 export { default as DuesConfigPage } from './pages/DuesConfigPage';
 export { default as GroupFinanceDetailPage } from './pages/GroupFinanceDetailPage';
-export { default as TransactionDetailPage } from './pages/TransactionDetailPage';
 export * from './components';
 export * from './types';
 export { financeService } from './services/financeService';

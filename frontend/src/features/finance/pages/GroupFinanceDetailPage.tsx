@@ -70,11 +70,7 @@ export default function GroupFinanceDetailPage() {
     userRole === "LEADER"    ? "/dashboard/kas" :
     userRole === "TREASURER" ? "/dashboard/kas-bendahara" :
                                "/dashboard/kas-rt";
-  const txDetailBasePath =
-    userRole === "LEADER"    ? "/dashboard/transaksi" :
-    userRole === "ADMIN"     ? "/dashboard/transaksi-rt" :
-    userRole === "TREASURER" ? "/dashboard/transaksi-bendahara" :
-                               "/dashboard/transaksi";
+  const txDetailBasePath = "/dashboard/transaksi";
 
   useEffect(() => {
     if (!groupId) return;
@@ -274,7 +270,7 @@ export default function GroupFinanceDetailPage() {
           <Card className="overflow-hidden">
             {/* Mobile Card View */}
             <div className="md:hidden divide-y divide-slate-100">
-              {filteredTx.map((tx, idx) => {
+              {filteredTx.map((tx) => {
                 const isIncome = tx.type === "INCOME" || tx.type === "CREDIT";
                 return (
                   <div

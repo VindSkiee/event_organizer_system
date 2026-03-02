@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -82,13 +82,11 @@ function formatDate(dateStr: string): string {
 
 export default function ResidentDashboard() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [balance, setBalance] = useState<TransparencyBalance | null>(null);
   const [bill, setBill] = useState<MyBill | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   const user = (() => {
     try {
@@ -98,16 +96,6 @@ export default function ResidentDashboard() {
       return null;
     }
   })();
-
-  // Check for payment success redirect
-  useEffect(() => {
-    if (searchParams.get("payment") === "success") {
-      setShowSuccessPopup(true);
-      setSearchParams({}, { replace: true });
-      const timer = setTimeout(() => setShowSuccessPopup(false), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -150,35 +138,6 @@ export default function ResidentDashboard() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Payment Success Popup */}
-      {showSuccessPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <Card className="w-full max-w-sm mx-4 shadow-2xl border-0 overflow-hidden">
-            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 text-center">
-              <div className="mx-auto w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mb-3">
-                <CheckCircle2 className="h-10 w-10 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-white font-poppins">Pembayaran Berhasil!</h2>
-              <p className="text-emerald-100 text-sm mt-1">
-                Iuran bulanan Anda telah berhasil dibayarkan.
-              </p>
-            </div>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-slate-500">
-                Terima kasih atas kontribusi Anda untuk lingkungan.
-              </p>
-              <Button
-                size="sm"
-                className="mt-3"
-                onClick={() => setShowSuccessPopup(false)}
-              >
-                Tutup
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold font-poppins text-slate-900">
