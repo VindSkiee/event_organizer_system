@@ -171,8 +171,8 @@ function App() {
                   <Route path="transaksi/:id" element={<TransactionDetailPage />} />
                 </Route>
 
-                {/* Detail Pengajuan Dana — ADMIN dan TREASURER */}
-                <Route element={<RoleProtectedRoute allowedRoles={["ADMIN", "TREASURER"]} />}>
+                {/* Detail Pengajuan Dana — ADMIN, TREASURER, dan LEADER */}
+                <Route element={<RoleProtectedRoute allowedRoles={["ADMIN", "TREASURER", "LEADER"]} />}>
                   <Route path="pengajuan-dana/:id" element={<FundRequestDetailPage />} />
                 </Route>
 

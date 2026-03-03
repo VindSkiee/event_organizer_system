@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { Input } from "@/shared/ui/input";
 import { Badge } from "@/shared/ui/badge";
 import {
   Select,
@@ -20,13 +19,15 @@ import {
 } from "@/shared/ui/tooltip";
 import {
   ArrowLeft,
-  Search,
   Users,
   Calendar,
   CheckCircle2,
   XCircle,
   Info,
-  Smartphone
+  Smartphone,
+  CalendarClock,
+  Building,
+  Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 import { financeService } from "@/features/finance/services/financeService";
@@ -68,15 +69,15 @@ function isPaidForMonth(member: DuesProgressMember, month: number, year: number)
 
 /** Check if member existed in a given month cleanly via strict Year/Month */
 function memberExistedInMonth(member: DuesProgressMember, month: number, year: number): boolean {
-  if (!member.createdAt) return true; 
-  
+  if (!member.createdAt) return true;
+
   const created = new Date(member.createdAt);
   const cYear = created.getFullYear();
   const cMonth = created.getMonth() + 1;
-  
+
   if (year > cYear) return true;
   if (year === cYear && month >= cMonth) return true;
-  
+
   return false;
 }
 
@@ -86,9 +87,9 @@ function getChildMonthStatus(member: DuesProgressMember, month: number, year: nu
   const paid = existed && isPaidForMonth(member, month, year);
   const isCurrent = year === currentYear && month === currentMonth;
   const isStrictlyFuture = year > currentYear || (year === currentYear && month > currentMonth);
-  const contribution = (member.contributions || []).find((c:any) => c.month === month && c.year === year);
+  const contribution = (member.contributions || []).find((c: any) => c.month === month && c.year === year);
 
-  let bgColor = "bg-slate-200 border border-slate-300/50"; 
+  let bgColor = "bg-slate-200 border border-slate-300/50";
   let tooltipText = `${MONTH_FULL[month - 1]} — Belum terdaftar`;
 
   if (existed) {
@@ -262,31 +263,62 @@ export default function GroupDuesProgressPage() {
 
         {/* Dues Rule Info */}
         {data?.duesRule && (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="flex items-center gap-3 py-3">
-              <Info className="h-4 w-4 text-primary shrink-0" />
-              <p className="text-sm text-slate-700">
-                Iuran: <span className="font-semibold">{formatRupiah(Number(data.duesRule.amount))}</span>/bulan
-                {data.parentDuesRule && (
-                  <> · Iuran RW: <span className="font-semibold">{formatRupiah(Number(data.parentDuesRule.amount))}</span>/bulan</>
-                )}
-                {data.duesRule.dueDay && (
-                  <> · Jatuh tempo tanggal <span className="font-semibold">{data.duesRule.dueDay}</span></>
-                )}
-              </p>
+          <Card className="bg-slate-50 border-slate-200/60 shadow-none rounded-xl overflow-hidden">
+            <CardContent className="p-3.5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-0">
+
+              {/* Info 1: Iuran Utama (RT) */}
+              <div className="flex items-center gap-2.5 sm:pr-5">
+                <div className="p-1.5 bg-white rounded-lg shadow-sm border border-slate-100 shrink-0">
+                  <Wallet className="h-4 w-4 text-emerald-600" />
+                </div>
+                <p className="text-sm text-slate-500">
+                  Iuran RT: <span className="font-semibold text-slate-900">{formatRupiah(Number(data.duesRule.amount))}</span><span className="text-xs">/bln</span>
+                </p>
+              </div>
+
+              {/* Info 2: Iuran Parent (RW) */}
+              {data.parentDuesRule && (
+                <div className="flex items-center gap-2.5 sm:px-5 sm:border-l border-slate-200">
+                  <div className="p-1.5 bg-white rounded-lg shadow-sm border border-slate-100 shrink-0">
+                    <Building className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    Iuran RW: <span className="font-semibold text-slate-900">{formatRupiah(Number(data.parentDuesRule.amount))}</span><span className="text-xs">/bln</span>
+                  </p>
+                </div>
+              )}
+
+              {/* Info 3: Jatuh Tempo */}
+              {data.duesRule.dueDay && (
+                <div className="flex items-center gap-2.5 sm:px-5 sm:border-l border-slate-200 mt-1 sm:mt-0">
+                  <div className="p-1.5 bg-white rounded-lg shadow-sm border border-slate-100 shrink-0">
+                    <CalendarClock className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    Jatuh Tempo: <span className="font-semibold text-slate-900">Tgl {data.duesRule.dueDay}</span>
+                  </p>
+                </div>
+              )}
+
             </CardContent>
           </Card>
         )}
 
         {/* Filters & Search */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
+          <div className="relative flex-1 max-w-sm group">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="h-4 w-4 text-slate-500 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+              </svg>
+            </div>
+            <input
+              type="text"
               placeholder="Cari nama atau telepon..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-10"
+              className="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-300 shadow-sm outline-none transition-all duration-200 focus:border-slate-600 focus:ring-2 focus:ring-slate-600/10 focus:shadow-md hover:border-slate-400"
             />
           </div>
           <div className="flex gap-2">
@@ -334,7 +366,7 @@ export default function GroupDuesProgressPage() {
           </Card>
         ) : (
           <Card className="overflow-hidden bg-slate-50/50 lg:bg-white border-0 ring-1 ring-slate-200">
-            
+
             {/* --- DESKTOP VIEW (TABLE) --- */}
             <div className="overflow-x-auto hidden lg:block">
               <table className="w-full text-sm">
@@ -357,9 +389,8 @@ export default function GroupDuesProgressPage() {
                       return (
                         <th
                           key={name}
-                          className={`text-center py-1.5 px-0.5 text-[10px] sm:text-xs font-medium ${
-                            isCurrent ? "text-primary font-bold" : "text-slate-500"
-                          }`}
+                          className={`text-center py-1.5 px-0.5 text-[10px] sm:text-xs font-medium ${isCurrent ? "text-primary font-bold" : "text-slate-500"
+                            }`}
                         >
                           {name}
                           {isCurrent && (
@@ -390,13 +421,13 @@ export default function GroupDuesProgressPage() {
             {/* --- MOBILE VIEW (CARDS) --- */}
             <div className="grid grid-cols-1 gap-3 p-3 lg:hidden">
               {filteredMembers.map((member) => (
-                <ChildMobileCard 
-                  key={member.id} 
-                  member={member} 
-                  year={selectedYear} 
-                  currentMonth={currentMonth} 
-                  currentYear={currentYear} 
-                  isFullyPaid={isFullyPaid(member)} 
+                <ChildMobileCard
+                  key={member.id}
+                  member={member}
+                  year={selectedYear}
+                  currentMonth={currentMonth}
+                  currentYear={currentYear}
+                  isFullyPaid={isFullyPaid(member)}
                 />
               ))}
             </div>
@@ -457,7 +488,7 @@ function MemberRow({
       <td className="text-center py-4 px-4 text-slate-500 text-xs hidden sm:table-cell">
         {member.phone || "—"}
       </td>
-      
+
       {/* 12 Month blocks */}
       {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
         const { bgColor, tooltipText, isCurrent } = getChildMonthStatus(member, month, year, currentMonth, currentYear);
@@ -481,7 +512,7 @@ function MemberRow({
           </td>
         );
       })}
-      
+
       {/* Status badge */}
       <td className="py-4 px-4 text-center">
         <Badge

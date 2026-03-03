@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
-import { Input } from "@/shared/ui/input";
 import {
   Select,
   SelectContent,
@@ -10,7 +9,7 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import { DataTable, type ColumnDef } from "@/shared/components/DataTable";
-import { Shield, Search, Filter } from "lucide-react";
+import { Shield, Filter } from "lucide-react";
 import { formatRupiah, formatDate } from "@/shared/helpers/formatters";
 import type { Transaction } from "@/shared/types";
 
@@ -95,13 +94,19 @@ export function UserTransactionHistory({ transactions = [] }: UserTransactionHis
         {/* --- Kontrol Filter & Search --- */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
           {/* Input Pencarian */}
-          <div className="relative w-full sm:w-64 shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
+          <div className="relative w-full sm:w-64 shrink-0 group">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="h-4 w-4 text-slate-500 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+              </svg>
+            </div>
+            <input
+              type="text"
               placeholder="Cari deskripsi..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm w-full"
+              className="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-300 shadow-sm outline-none transition-all duration-200 focus:border-slate-600 focus:ring-2 focus:ring-slate-600/10 focus:shadow-md hover:border-slate-400"
             />
           </div>
 

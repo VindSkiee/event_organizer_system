@@ -205,10 +205,10 @@ export default function ResidentDashboard() {
               </div>
               <div>
                 <h3 className="text-base font-semibold text-slate-900 font-poppins tracking-tight">
-                  Aturan Pembayaran Belum Ditentukan
+                  Biaya Pembayaran Belum Ditentukan
                 </h3>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  Pengurus belum mengatur aturan iuran untuk kelompok Anda. Status tagihan tidak tersedia saat ini.
+                  Pengurus belum mengatur biaya iuran untuk kelompok Anda. Status tagihan tidak tersedia saat ini.
                 </p>
               </div>
             </div>

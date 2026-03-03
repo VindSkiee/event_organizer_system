@@ -6,7 +6,6 @@ import {
 } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { Input } from "@/shared/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import {
   Collapsible,
@@ -15,7 +14,6 @@ import {
 } from "@/shared/ui/collapsible";
 import {
   Building2,
-  Search,
   Trash2,
   ChevronDown,
   Pencil,
@@ -227,9 +225,20 @@ function LeaderView({ navigate }: { navigate: ReturnType<typeof useNavigate> }) 
 
         <TabsContent value="data-rt" className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input placeholder="Cari RT..." value={searchRT} onChange={(e) => setSearchRT(e.target.value)} className="pl-9 h-10" />
+            <div className="relative flex-1 max-w-sm group">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="h-4 w-4 text-slate-500 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="11" cy="11" r="8" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Cari RT..."
+                value={searchRT}
+                onChange={(e) => setSearchRT(e.target.value)}
+                className="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-300 shadow-sm outline-none transition-all duration-200 focus:border-slate-600 focus:ring-2 focus:ring-slate-600/10 focus:shadow-md hover:border-slate-400"
+              />
             </div>
             <CreateRtDialog onSuccess={fetchData} />
           </div>
@@ -363,6 +372,7 @@ function TreasurerView({ userGroupId }: { userGroupId: number | null }) {
   const [expandedRT, setExpandedRT] = useState<number | null>(null);
   const [rtMembers, setRtMembers] = useState<Record<number, UserItem[]>>({});
   const [loadingMembers, setLoadingMembers] = useState<number | null>(null);
+  const [memberSearch, setMemberSearch] = useState("");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -396,6 +406,7 @@ function TreasurerView({ userGroupId }: { userGroupId: number | null }) {
   }, [rtMembers]);
 
   const toggleRT = (groupId: number) => {
+    setMemberSearch("");
     if (expandedRT === groupId) { setExpandedRT(null); } else { setExpandedRT(groupId); fetchRTMembers(groupId); }
   };
 
@@ -423,9 +434,20 @@ function TreasurerView({ userGroupId }: { userGroupId: number | null }) {
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-800 font-poppins">Daftar RT</h2>
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input placeholder="Cari RT..." value={searchRT} onChange={(e) => setSearchRT(e.target.value)} className="pl-9 h-10" />
+          <div className="relative max-w-sm group">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="h-4 w-4 text-slate-500 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Cari RT..."
+              value={searchRT}
+              onChange={(e) => setSearchRT(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-300 shadow-sm outline-none transition-all duration-200 focus:border-slate-600 focus:ring-2 focus:ring-slate-600/10 focus:shadow-md hover:border-slate-400"
+            />
           </div>
         </div>
         {loading ? <LoadingSkeletons /> : sortedRTs.length === 0 ? <EmptyState text="Belum ada RT" /> : (
@@ -441,6 +463,13 @@ function TreasurerView({ userGroupId }: { userGroupId: number | null }) {
 
               // 4. Treasurer RW bisa melihat SEMUA data (seakan-akan isOwn true untuk semua)
               const canViewMembers = isParentRole || isOwn;
+              const filteredMembers = canViewMembers && memberSearch.length >= 3
+                ? members.filter((m) =>
+                    m.fullName.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                    m.email.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                    (m.phone || "").toLowerCase().includes(memberSearch.toLowerCase())
+                  )
+                : members;
 
               return (
                 <Collapsible key={rt.id} open={isExpanded} onOpenChange={() => toggleRT(rt.id)}>
@@ -466,11 +495,17 @@ function TreasurerView({ userGroupId }: { userGroupId: number | null }) {
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        </div>
+                      <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-8">
                         {canViewMembers ? (
-                          <ReadOnlyMemberTable members={members} loading={isLoadingThisRT} navigate={navigate} showDetail currentUserId={currentUserId || undefined} />
+                          <>
+                            <WargaSearchBar
+                              value={memberSearch}
+                              onChange={setMemberSearch}
+                              isSearching={isLoadingThisRT}
+                              resultCount={memberSearch.length >= 3 ? filteredMembers.length : undefined}
+                            />
+                            <ReadOnlyMemberTable members={filteredMembers} loading={isLoadingThisRT} navigate={navigate} showDetail currentUserId={currentUserId || undefined} />
+                          </>
                         ) : (
                           <p className="text-xs text-slate-400 text-center py-2">Hanya dapat melihat anggota RT Anda sendiri.</p>
                         )}
@@ -496,6 +531,7 @@ function AdminView({ navigate, userGroupId }: { navigate: ReturnType<typeof useN
   const [expandedRT, setExpandedRT] = useState<number | null>(null);
   const [rtMembers, setRtMembers] = useState<Record<number, UserItem[]>>({});
   const [loadingMembers, setLoadingMembers] = useState<number | null>(null);
+  const [memberSearch, setMemberSearch] = useState("");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -525,6 +561,7 @@ function AdminView({ navigate, userGroupId }: { navigate: ReturnType<typeof useN
   }, [rtMembers]);
 
   const toggleRT = (groupId: number) => {
+    setMemberSearch("");
     if (expandedRT === groupId) { setExpandedRT(null); } else { setExpandedRT(groupId); fetchRTMembersById(groupId); }
   };
 
@@ -549,6 +586,13 @@ function AdminView({ navigate, userGroupId }: { navigate: ReturnType<typeof useN
             const isLoadingThisRT = loadingMembers === rt.id;
             const hasFetchedMembers = rtMembers[rt.id] !== undefined;
             const realMemberCount = hasFetchedMembers ? members.length : rt.memberCount;
+            const filteredMembers = isOwn && memberSearch.length >= 3
+              ? members.filter((m) =>
+                  m.fullName.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                  m.email.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                  (m.phone || "").toLowerCase().includes(memberSearch.toLowerCase())
+                )
+              : members;
             return (
               <Collapsible key={rt.id} open={isExpanded} onOpenChange={() => toggleRT(rt.id)}>
                 <Card className={`group overflow-hidden transition-shadow ${isOwn ? "border-slate-100 shadow-sm hover:shadow-md hover:border-primary/40 transition-all duration-400" : "border-slate-100 shadow-sm hover:shadow-md"}`}>
@@ -571,11 +615,17 @@ function AdminView({ navigate, userGroupId }: { navigate: ReturnType<typeof useN
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      </div>
+                    <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-8">
                       {isOwn ? (
-                        <ReadOnlyMemberTable members={members} loading={isLoadingThisRT} navigate={navigate} showDetail currentUserId={getUserIdFromStorage() || undefined} />
+                        <>
+                          <WargaSearchBar
+                            value={memberSearch}
+                            onChange={setMemberSearch}
+                            isSearching={isLoadingThisRT}
+                            resultCount={memberSearch.length >= 3 ? filteredMembers.length : undefined}
+                          />
+                          <ReadOnlyMemberTable members={filteredMembers} loading={isLoadingThisRT} navigate={navigate} showDetail currentUserId={getUserIdFromStorage() || undefined} />
+                        </>
                       ) : (
                         <p className="text-xs text-slate-400 text-center py-2">Hanya dapat melihat anggota RT Anda sendiri.</p>
                       )}

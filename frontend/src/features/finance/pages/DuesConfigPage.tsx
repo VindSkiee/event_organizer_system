@@ -57,7 +57,7 @@ export default function DuesConfigPage() {
         </Button>
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold font-poppins text-slate-900">
-            Pengaturan Iuran
+            Pengaturan Biaya Iuran
           </h1>
           <p className="text-sm sm:text-base text-slate-500 mt-1">
             Atur nominal dan tanggal jatuh tempo iuran untuk{" "}

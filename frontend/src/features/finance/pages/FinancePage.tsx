@@ -29,7 +29,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import {
   Wallet,
-  Search,
   Clock,
   Loader2,
   Banknote,
@@ -38,6 +37,8 @@ import {
   Plus,
   Users,
   ChevronRight,
+  ChevronDown,
+  SlidersHorizontal,
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -89,7 +90,16 @@ export default function FinancePage() {
   const [searchTx, setSearchTx] = useState("");
   const [filterTabTx, setFilterTabTx] = useState<"today" | "all">("today");
   const [dateRangeTx, setDateRangeTx] = useState<DateRange | undefined>(undefined);
+  const [filterTypeTx, setFilterTypeTx] = useState<"all" | "income" | "expense">("all");
   const [searchFR, setSearchFR] = useState("");
+
+  // Advanced filters (Transaksi)
+  const [showAdvancedFilterTx, setShowAdvancedFilterTx] = useState(false);
+  const [filterPaymentMethodTx, setFilterPaymentMethodTx] = useState<"all" | "manual" | "qris" | "va" | "ewallet" | "card">("all");
+  const [filterStatusTx, setFilterStatusTx] = useState<"all" | "success" | "failed">("all");
+  const [filterCategoryTx, setFilterCategoryTx] = useState<"all" | "iuran" | "kegiatan" | "pengajuan">("all");
+  const [minAmountTx, setMinAmountTx] = useState("");
+  const [maxAmountTx, setMaxAmountTx] = useState("");
 
   // Check role from localStorage
   const userRole = (() => {
@@ -225,6 +235,9 @@ export default function FinancePage() {
   const filteredTx = transactions.filter((t) => {
     const matchSearch = t.description.toLowerCase().includes(searchTx.toLowerCase());
     if (!matchSearch) return false;
+    const isIncome = t.type === "INCOME" || t.type === "CREDIT";
+    if (filterTypeTx === "income" && !isIncome) return false;
+    if (filterTypeTx === "expense" && isIncome) return false;
     const txDate = new Date(t.createdAt);
     if (filterTabTx === "today") {
       const today = new Date();
@@ -246,6 +259,33 @@ export default function FinancePage() {
         if (d > to) return false;
       }
     }
+    // Advanced filters
+    if (filterPaymentMethodTx === "manual" && t.paymentGatewayTx) return false;
+    if (filterPaymentMethodTx === "qris" && t.paymentGatewayTx?.methodCategory !== "qris") return false;
+    if (filterPaymentMethodTx === "va" && t.paymentGatewayTx?.methodCategory !== "bank_transfer") return false;
+    if (filterPaymentMethodTx === "ewallet" && !["gopay", "shopeepay", "ovo", "dana"].includes(t.paymentGatewayTx?.methodCategory || "")) return false;
+    if (filterPaymentMethodTx === "card" && t.paymentGatewayTx?.methodCategory !== "credit_card") return false;
+    if (filterStatusTx === "success") {
+      if (t.paymentGatewayTx && !["settlement", "capture"].includes(t.paymentGatewayTx.status)) return false;
+    }
+    if (filterStatusTx === "failed") {
+      if (!t.paymentGatewayTx) return false;
+      if (["settlement", "capture"].includes(t.paymentGatewayTx.status)) return false;
+    }
+    if (filterCategoryTx === "iuran" && !/iuran/i.test(t.description)) return false;
+    if (filterCategoryTx === "kegiatan" && !/kegiatan|acara|event/i.test(t.description)) return false;
+    if (filterCategoryTx === "pengajuan") {
+      // Fund request disbursements: manual DEBIT/EXPENSE with description containing related keywords,
+      // OR any manual debit with no paymentGatewayTx (RW/Leader's outflow to RT)
+      const isPengajuan =
+        /pengajuan|pencairan|dana transfer|transfer ke/i.test(t.description) ||
+        (!t.paymentGatewayTx && (t.type === "DEBIT" || t.type === "EXPENSE"));
+      if (!isPengajuan) return false;
+    }
+    const minAmt = Number(minAmountTx);
+    const maxAmt = Number(maxAmountTx);
+    if (minAmountTx && !isNaN(minAmt) && t.amount < minAmt) return false;
+    if (maxAmountTx && !isNaN(maxAmt) && t.amount > maxAmt) return false;
     return true;
   });
 
@@ -254,6 +294,14 @@ export default function FinancePage() {
       f.description.toLowerCase().includes(searchFR.toLowerCase()) ||
       (f.communityGroup?.name || "").toLowerCase().includes(searchFR.toLowerCase())
   );
+
+  const advancedFilterCountTx = [
+    filterPaymentMethodTx !== "all",
+    filterStatusTx !== "all",
+    filterCategoryTx !== "all",
+    !!minAmountTx,
+    !!maxAmountTx,
+  ].filter(Boolean).length;
 
   // === Handle Approve Fund Request ===
   const handleApproveFR = (fr: FundRequest) => {
@@ -439,43 +487,44 @@ export default function FinancePage() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 font-poppins">
+      <div className="grid gap-2 sm:gap-4 grid-cols-3">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between p-3 pb-1.5 sm:p-5 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium text-slate-600 font-poppins leading-tight truncate">
               Transaksi
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-primary" />
+            <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
           </CardHeader>
-          <CardContent>
-            {loading ? <Skeleton className="h-8 w-12" /> : (
-              <div className="text-2xl font-bold text-slate-900">{transactions.length}</div>
+          <CardContent className="px-3 pb-3 pt-0 sm:px-5 sm:pb-4">
+            {loading ? <Skeleton className="h-7 w-8 sm:h-8 sm:w-12" /> : (
+              <div className="text-xl sm:text-2xl font-bold text-slate-900">{transactions.length}</div>
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 font-poppins">
-              Pengajuan Dana
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between p-3 pb-1.5 sm:p-5 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium text-slate-600 font-poppins leading-tight truncate">
+              <span className="hidden sm:inline">Pengajuan Dana</span>
+              <span className="sm:hidden">Pengajuan</span>
             </CardTitle>
-            <Banknote className="h-4 w-4 text-brand-green" />
+            <Banknote className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-brand-green shrink-0" />
           </CardHeader>
-          <CardContent>
-            {loading ? <Skeleton className="h-8 w-12" /> : (
-              <div className="text-2xl font-bold text-slate-900">{fundRequests.length}</div>
+          <CardContent className="px-3 pb-3 pt-0 sm:px-5 sm:pb-4">
+            {loading ? <Skeleton className="h-7 w-8 sm:h-8 sm:w-12" /> : (
+              <div className="text-xl sm:text-2xl font-bold text-slate-900">{fundRequests.length}</div>
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 font-poppins">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between p-3 pb-1.5 sm:p-5 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium text-slate-600 font-poppins leading-tight truncate">
               Menunggu
             </CardTitle>
-            <Clock className="h-4 w-4 text-amber-500" />
+            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 shrink-0" />
           </CardHeader>
-          <CardContent>
-            {loading ? <Skeleton className="h-8 w-12" /> : (
-              <div className="text-2xl font-bold text-amber-600">{pendingFR.length}</div>
+          <CardContent className="px-3 pb-3 pt-0 sm:px-5 sm:pb-4">
+            {loading ? <Skeleton className="h-7 w-8 sm:h-8 sm:w-12" /> : (
+              <div className="text-xl sm:text-2xl font-bold text-amber-600">{pendingFR.length}</div>
             )}
           </CardContent>
         </Card>
@@ -514,52 +563,203 @@ export default function FinancePage() {
         <div className="overflow-x-auto -mx-1 px-1 pb-0.5">
           <TabsList className="w-max">
             <TabsTrigger value="transaksi">Riwayat Transaksi</TabsTrigger>
-            {userRole !== "LEADER" && (
+            {userRole !== "TREASURER" || isRwTreasurer ? (
               <TabsTrigger value="pengajuan">
                 Pengajuan Dana {pendingFR.length > 0 && `(${pendingFR.length})`}
               </TabsTrigger>
-            )}
+            ) : null}
           </TabsList>
         </div>
 
         {/* === TAB: Transaksi === */}
         <TabsContent value="transaksi" className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
-            <div className="flex bg-slate-100 p-1 rounded-lg shrink-0">
-              <button
-                onClick={() => { setFilterTabTx("today"); setDateRangeTx(undefined); }}
-                className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  filterTabTx === "today" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Hari Ini
-              </button>
-              <button
-                onClick={() => setFilterTabTx("all")}
-                className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  filterTabTx === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Semua
-              </button>
+          
+          {/* === FILTER BAR RESPONSIVE === */}
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            
+            {/* Baris Atas di Mobile (Tabs & Type Select) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto shrink-0">
+              {/* Tab: Hari Ini / Semua */}
+              <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
+                <button
+                  onClick={() => { setFilterTabTx("today"); setDateRangeTx(undefined); }}
+                  className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    filterTabTx === "today" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Hari Ini
+                </button>
+                <button
+                  onClick={() => setFilterTabTx("all")}
+                  className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    filterTabTx === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Semua
+                </button>
+              </div>
+
+              {/* Filter Tanggal (Muncul jika Semua) */}
+              {filterTabTx === "all" && (
+                <div className="w-full sm:w-auto">
+                  <DateRangeFilter
+                    value={dateRangeTx}
+                    onChange={setDateRangeTx}
+                    placeholder="Pilih rentang tanggal"
+                  />
+                </div>
+              )}
+
+              {/* Type filter */}
+              <div className="w-full sm:w-[160px] shrink-0">
+                <Select value={filterTypeTx} onValueChange={(v) => setFilterTypeTx(v as "all" | "income" | "expense")}>
+                  <SelectTrigger className="h-10 w-full rounded-xl border-slate-200 bg-white text-sm shadow-sm focus:ring-primary/20">
+                    <SelectValue placeholder="Semua Tipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Tipe</SelectItem>
+                    <SelectItem value="income">Pemasukan</SelectItem>
+                    <SelectItem value="expense">Pengeluaran</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            {filterTabTx === "all" && (
-              <DateRangeFilter
-                value={dateRangeTx}
-                onChange={setDateRangeTx}
-                placeholder="Filter tanggal"
-              />
-            )}
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Cari transaksi..."
-                value={searchTx}
-                onChange={(e) => setSearchTx(e.target.value)}
-                className="pl-9"
-              />
+
+            {/* Baris Bawah di Mobile (Search & Advanced Toggle) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full">
+              {/* Search Input */}
+              <div className="relative w-full lg:max-w-md group">
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="11" cy="11" r="8" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cari transaksi..."
+                  value={searchTx}
+                  onChange={(e) => setSearchTx(e.target.value)}
+                  className="w-full h-10 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-200 shadow-sm outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/10 hover:border-slate-300"
+                />
+              </div>
+
+              {/* Actions: Advanced Filter & Reset */}
+              <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 px-1 sm:px-0">
+                <button
+                  onClick={() => setShowAdvancedFilterTx(!showAdvancedFilterTx)}
+                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                    showAdvancedFilterTx || advancedFilterCountTx > 0 ? "text-primary" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span>Filter Lanjut</span>
+                  {advancedFilterCountTx > 0 && (
+                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white shadow-sm">
+                      {advancedFilterCountTx}
+                    </span>
+                  )}
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showAdvancedFilterTx ? "rotate-180" : ""}`} />
+                </button>
+
+                {(filterTypeTx !== "all" || dateRangeTx?.from || searchTx || advancedFilterCountTx > 0) && (
+                  <button
+                    onClick={() => { 
+                      setFilterTypeTx("all"); setDateRangeTx(undefined); setSearchTx("");
+                      setFilterPaymentMethodTx("all"); setFilterStatusTx("all"); setFilterCategoryTx("all"); 
+                      setMinAmountTx(""); setMaxAmountTx("");
+                    }}
+                    className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors"
+                  >
+                    Reset Semua
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* === ADVANCED FILTER PANEL === */}
+          {showAdvancedFilterTx && (
+            <Card className="border border-primary/20 bg-primary/5 shadow-none overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 rounded-xl">
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  
+                  {/* Method */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Metode Pembayaran</Label>
+                    <Select value={filterPaymentMethodTx} onValueChange={(v) => setFilterPaymentMethodTx(v as "all" | "manual" | "qris" | "va" | "ewallet" | "card")}>
+                      <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-white text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua Metode</SelectItem>
+                        <SelectItem value="manual">Manual / Tunai</SelectItem>
+                        <SelectItem value="qris">QRIS</SelectItem>
+                        <SelectItem value="va">Virtual Account</SelectItem>
+                        <SelectItem value="ewallet">E-Wallet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status Transaksi</Label>
+                    <Select value={filterStatusTx} onValueChange={(v) => setFilterStatusTx(v as "all" | "success" | "failed")}>
+                      <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-white text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua Status</SelectItem>
+                        <SelectItem value="success">Berhasil</SelectItem>
+                        <SelectItem value="failed">Gagal / Kedaluwarsa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Category */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kategori</Label>
+                    <Select value={filterCategoryTx} onValueChange={(v) => setFilterCategoryTx(v as "all" | "iuran" | "kegiatan" | "pengajuan")}>
+                      <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-white text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua Kategori</SelectItem>
+                        <SelectItem value="iuran">Iuran</SelectItem>
+                        <SelectItem value="kegiatan">Kegiatan</SelectItem>
+                        <SelectItem value="pengajuan">Pengajuan Dana</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Amount Range */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Rentang Nominal</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        placeholder="Min (Rp)"
+                        value={minAmountTx}
+                        onChange={(e) => setMinAmountTx(e.target.value)}
+                        className="w-full h-10 px-3 rounded-lg text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      />
+                      <span className="text-slate-400 text-xs">—</span>
+                      <input
+                        type="number"
+                        placeholder="Maks (Rp)"
+                        value={maxAmountTx}
+                        onChange={(e) => setMaxAmountTx(e.target.value)}
+                        className="w-full h-10 px-3 rounded-lg text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Sisa konten (Loading / Tabel Transaksi) bisa diletakkan di bawah ini */}
 
           {loading ? (
             <Card>
@@ -574,7 +774,7 @@ export default function FinancePage() {
               <CardContent className="flex flex-col items-center justify-center py-10 text-center">
                 <Wallet className="h-10 w-10 text-slate-300 mb-3" />
                 <p className="text-sm text-slate-500 font-medium">
-                  {searchTx ? "Transaksi tidak ditemukan." : filterTabTx === "today" ? "Belum ada transaksi hari ini." : "Belum ada transaksi."}
+                  {searchTx || filterTypeTx !== "all" || dateRangeTx?.from || advancedFilterCountTx > 0 ? "Transaksi tidak ditemukan." : filterTabTx === "today" ? "Belum ada transaksi hari ini." : "Belum ada transaksi."}
                 </p>
               </CardContent>
             </Card>
@@ -592,13 +792,19 @@ export default function FinancePage() {
         {/* === TAB: Pengajuan Dana === */}
         <TabsContent value="pengajuan" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
+            <div className="relative max-w-sm flex-1 group">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="h-4 w-4 text-slate-500 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="11" cy="11" r="8" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+                </svg>
+              </div>
+              <input
+                type="text"
                 placeholder="Cari pengajuan..."
                 value={searchFR}
                 onChange={(e) => setSearchFR(e.target.value)}
-                className="pl-9"
+                className="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-300 shadow-sm outline-none transition-all duration-200 focus:border-slate-600 focus:ring-2 focus:ring-slate-600/10 focus:shadow-md hover:border-slate-400"
               />
             </div>
             {canCreateFundRequest && (
@@ -629,7 +835,7 @@ export default function FinancePage() {
             <Card>
               <FundRequestTable
                 fundRequests={filteredFR}
-                canApprove={isRwTreasurer}
+                canApprove={isRwTreasurer || isRwLevel}
                 onApprove={handleApproveFR}
                 onReject={(fr) => {
                   setSelectedFR(fr);

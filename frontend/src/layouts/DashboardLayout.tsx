@@ -35,7 +35,7 @@ import { authService } from "@/features/auth/services/authService";
 import { getRoleLabel, loadCustomRoleLabels } from "@/shared/helpers/roleLabel";
 import { getAvatarUrl } from "@/shared/helpers/avatarUrl";
 import { onSidebarUpdate, offSidebarUpdate } from "@/shared/helpers/sidebarEvents";
-import { useBadgeNotifications, type BadgeCounts } from "@/shared/hooks/useBadgeNotifications";
+import { useBadgeNotifications } from "@/shared/hooks/useBadgeNotifications";
 
 // Tipe data user dari LocalStorage
 interface User {
@@ -143,43 +143,27 @@ export default function DashboardLayout() {
   // 5. Badge notifications
   const badges = useBadgeNotifications();
 
-  /** Map menu path to badge count */
   const getBadgeCount = (path: string): number => {
-    // Kegiatan pages
     if (path.includes("kegiatan")) return badges.events;
-    // Kas & Keuangan pages
     if (path.includes("kas")) return badges.finance;
-    // Pembayaran pages
     if (path.includes("pembayaran")) return badges.payment;
-    // Profil
     if (path.includes("profile")) return badges.profile;
     return 0;
   };
 
-  /**
-   * Sub-paths that should highlight a specific parent menu item.
-   * Key = pathname substring, Value = parent menu path substring.
-   * This prevents e.g. /dashboard/pengaturan-iuran from matching "Pengaturan"
-   * instead of "Kas & Keuangan".
-   */
   const subPathToParent: Record<string, string> = {
     "pengaturan-iuran": "kas",
     "progres-iuran": "pembayaran",
     "detail-progres": "pembayaran",
   };
 
-  /** Check if a menu item should be active for the current pathname */
   const isMenuActive = (menuPath: string): boolean => {
     const pathname = location.pathname;
-
-    // First check if current path is a sub-path that maps to a specific parent
     for (const [subPath, parentKey] of Object.entries(subPathToParent)) {
       if (pathname.includes(subPath)) {
         return menuPath.includes(parentKey);
       }
     }
-
-    // Default: simple includes check
     return pathname.includes(menuPath);
   };
 
@@ -189,19 +173,19 @@ export default function DashboardLayout() {
     return (
       <>
         {/* Logo */}
-      <div className={`flex items-center pt-5 pb-2 transition-all duration-300 ${collapsed ? 'px-3 justify-center' : 'px-5 gap-3'}`}>
-        <img
-          src="/images/logoRB.webp"
-          alt="Logo Marinakas"
-          className={`object-contain shrink-0 transition-all duration-300 ${collapsed ? 'h-8 w-8' : 'h-6.5'}`} 
-        />
-        {!collapsed && (
-          <div className="font-extrabold text-[26px] leading-none tracking-tight truncate transition-opacity duration-300 font-montserrat flex-1">
-            <span className="text-white">MARINA</span>
-            <span className="text-primary">KAS</span>
-          </div>
-        )}
-      </div>
+        <div className={`flex items-center pt-5 pb-2 transition-all duration-300 ${collapsed ? 'px-3 justify-center' : 'px-5 gap-3'}`}>
+          <img
+            src="/images/logoRB.webp"
+            alt="Logo Marinakas"
+            className={`object-contain shrink-0 transition-all duration-300 ${collapsed ? 'h-8 w-8' : 'h-6.5'}`} 
+          />
+          {!collapsed && (
+            <div className="font-extrabold text-[26px] leading-none tracking-tight truncate transition-opacity duration-300 font-montserrat flex-1">
+              <span className="text-white">MARINA</span>
+              <span className="text-primary">KAS</span>
+            </div>
+          )}
+        </div>
 
         {/* Divider */}
         <div className="h-px w-full opacity-20">
@@ -304,7 +288,8 @@ export default function DashboardLayout() {
     >
 
       {/* --- SIDEBAR (DESKTOP) --- */}
-      <aside className={`hidden md:flex shrink-0 p-3 z-20 transition-all duration-300 ${isCollapsed ? 'w-[100px]' : 'w-[280px]'}`}>
+      {/* Ubah md:flex menjadi lg:flex agar iPad masuk ke mode Mobile */}
+      <aside className={`hidden lg:flex shrink-0 p-3 z-20 transition-all duration-300 ${isCollapsed ? 'w-[100px]' : 'w-[280px]'}`}>
         <div className="relative w-full backdrop-blur-[80px] bg-primary/70 border-[0.5px] border-solid border-white/10 rounded-[28px] shadow-[0px_24px_64px_-16px_rgba(7,44,82,0.3)] flex flex-col">
           {/* Collapse Button */}
           <button
@@ -336,7 +321,8 @@ export default function DashboardLayout() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
 
         {/* Mobile Header with Menu Button */}
-        <header className="md:hidden sticky top-0 z-40 flex items-center gap-3 px-4 py-3 bg-primary/90 backdrop-blur-xl border-b border-white/10 shadow-[0px_4px_24px_rgba(7,44,82,0.25)]">
+        {/* Ubah md:hidden menjadi lg:hidden */}
+        <header className="lg:hidden sticky top-0 z-40 flex items-center gap-3 px-4 py-3 bg-primary/90 backdrop-blur-xl border-b border-white/10 shadow-[0px_4px_24px_rgba(7,44,82,0.25)]">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="shrink-0 text-white hover:text-white hover:bg-white/10">
@@ -346,9 +332,22 @@ export default function DashboardLayout() {
             {/* Glass Sidebar Mobile */}
             <SheetContent
               side="left"
-              className="w-[280px] p-0 border-r-0 bg-transparent shadow-none [&>button]:text-white/80 [&>button]:bg-white/10 [&>button]:hover:bg-white/20 [&>button]:hover:text-white [&>button]:rounded-full [&>button]:w-8 [&>button]:h-8 [&>button]:flex [&>button]:items-center [&>button]:justify-center [&>button]:top-5 [&>button]:right-5 [&>button]:transition-all [&>button]:duration-200"
+              className="w-[300px] sm:w-[320px] p-0 border-r-0 bg-transparent shadow-none [&>button]:text-white/80 [&>button]:bg-white/10 [&>button]:hover:bg-white/20 [&>button]:hover:text-white [&>button]:rounded-full [&>button]:w-8 [&>button]:h-8 [&>button]:flex [&>button]:items-center [&>button]:justify-center [&>button]:top-5 [&>button]:right-5 [&>button]:transition-all [&>button]:duration-200"
             >
-              <div className="h-full m-3 backdrop-blur-[80px] bg-primary/20 rounded-[28px] shadow-[0px_24px_64px_-16px_rgba(7,44,82,0.3)] flex flex-col overflow-hidden">
+              {/* LAPISAN 1: FAKE BACKGROUND 
+                  Trik untuk memblokir overlay gelap (fade-in) Shadcn agar tidak menembus lapisan kaca. */}
+              <div 
+                className="absolute top-3 bottom-3 left-3 right-3 rounded-[28px] -z-10"
+                style={{
+                  backgroundImage: "url('/images/bgimage.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "left top", 
+                }}
+              />
+
+              {/* LAPISAN 2: GLASSMORPHISM 
+                  Warna dan efek kaca ini sekarang sudah 100% sama dengan yang ada di Desktop. */}
+              <div className="h-full m-3 backdrop-blur-[80px] bg-primary/70 border-[0.5px] border-solid border-white/10 rounded-[28px] shadow-[0px_24px_64px_-16px_rgba(7,44,82,0.3)] flex flex-col overflow-hidden">
                 <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
               </div>
             </SheetContent>

@@ -71,37 +71,41 @@ export function FundRequestTable({
         );
       },
     },
-    {
-      key: "actions",
-      header: "Aksi",
-      align: "right",
-      render: (fr) =>
-        canApprove && fr.status === "PENDING" ? (
-          <div
-            className="flex items-center justify-end gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-              title="Setujui"
-              onClick={() => onApprove?.(fr)}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-              title="Tolak"
-              onClick={() => onReject?.(fr)}
-            >
-              <XCircle className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : null,
-    },
+    ...(canApprove
+      ? [
+          {
+            key: "actions",
+            header: "Aksi",
+            align: "right" as const,
+            render: (fr: FundRequest) =>
+              fr.status === "PENDING" ? (
+                <div
+                  className="flex items-center justify-end gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                    title="Setujui"
+                    onClick={() => onApprove?.(fr)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    title="Tolak"
+                    onClick={() => onReject?.(fr)}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null,
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -50,6 +50,7 @@ export function TransactionTable({ transactions, onRowClick, newSinceMs }: Trans
     {
       key: "description",
       header: "Deskripsi",
+      cellClassName: "min-w-0 max-w-[280px]",
       render: (tx) => {
         const isNew = newSinceMs != null && new Date(tx.createdAt).getTime() > newSinceMs;
         return (
@@ -107,6 +108,7 @@ export function TransactionTable({ transactions, onRowClick, newSinceMs }: Trans
     {
       key: "type",
       header: "Tipe",
+      hideBelow: "lg",
       render: (tx) => {
         const paymentStatus = tx.paymentGatewayTx ? getPaymentStatusConfig(tx.paymentGatewayTx.status) : null;
         return (
@@ -143,12 +145,9 @@ export function TransactionTable({ transactions, onRowClick, newSinceMs }: Trans
     {
       key: "date",
       header: "Tanggal",
+      hideBelow: "lg",
       render: (tx) => (
-        <div>
-          <span className="text-sm text-slate-500">{formatDateTime(tx.createdAt)}</span>
-            <p className="text-[10px] text-slate-400 mt-0.5 font-mono truncate max-w-[140px]">
-            </p>
-        </div>
+        <span className="text-sm text-slate-500 whitespace-nowrap">{formatDateTime(tx.createdAt)}</span>
       ),
     },
   ], [newSinceMs]);
@@ -161,6 +160,75 @@ export function TransactionTable({ transactions, onRowClick, newSinceMs }: Trans
       showRowNumber
       rowNumberPadded
       onRowClick={onRowClick}
+      renderMobileCard={(tx, idx) => {
+        const isNew = newSinceMs != null && new Date(tx.createdAt).getTime() > newSinceMs;
+        const income = isIncome(tx);
+        const paymentStatus = tx.paymentGatewayTx ? getPaymentStatusConfig(tx.paymentGatewayTx.status) : null;
+        return (
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Row number + icon stack */}
+            <div className="relative shrink-0 flex flex-col items-center gap-1">
+              <div className="text-[10px] font-medium text-slate-400 leading-none">
+                {(idx + 1).toString().padStart(2, "0")}
+              </div>
+              <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${income ? "bg-emerald-100" : "bg-red-100"}`}>
+                {income ? (
+                  <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
+                ) : (
+                  <ArrowUpRight className="h-4 w-4 text-red-600" />
+                )}
+              </div>
+              {isNew && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500 ring-2 ring-white"></span>
+                </span>
+              )}
+            </div>
+            {/* Main content */}
+            <div className="flex-1 min-w-0">
+              {/* Line 1: description + amount */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">{tx.description}</p>
+                  {isNew && (
+                    <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 border border-sky-200 uppercase tracking-wide">
+                      Baru
+                    </span>
+                  )}
+                </div>
+                <span className={`text-sm font-semibold shrink-0 ${income ? "text-emerald-600" : "text-red-600"}`}>
+                  {income ? "+" : "-"}{formatRupiah(Math.abs(tx.amount))}
+                </span>
+              </div>
+              {/* Line 2: metadata + date + status */}
+              <div className="flex items-center justify-between gap-2 mt-0.5 flex-wrap">
+                <div className="flex items-center gap-1.5 text-xs text-slate-400 min-w-0">
+                  <span className="truncate">{tx.createdBy?.fullName || "Sistem"}</span>
+                  {tx.paymentGatewayTx && (
+                    <>
+                      <span className="text-slate-300">&bull;</span>
+                      <span className="flex items-center gap-0.5 shrink-0">
+                        <CreditCard className="h-3 w-3" />
+                        {getMethodLabel(tx.paymentGatewayTx.methodCategory)}
+                      </span>
+                    </>
+                  )}
+                  {paymentStatus && (
+                    <>
+                      <span className="text-slate-300">&bull;</span>
+                      <span className={`shrink-0 text-[10px] font-medium ${paymentStatus.className} px-1.5 py-0.5 rounded-full border`}>
+                        {paymentStatus.label}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <span className="text-[10px] text-slate-400 shrink-0">{formatDateTime(tx.createdAt)}</span>
+              </div>
+            </div>
+          </div>
+        );
+      }}
     />
   );
 }

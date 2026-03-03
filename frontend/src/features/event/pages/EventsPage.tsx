@@ -8,11 +8,9 @@ import {
 } from "@/shared/ui/card";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { Input } from "@/shared/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import {
     CalendarDays,
-    Search,
     Clock,
     Plus,
     Zap,
@@ -162,43 +160,43 @@ export default function EventsPage() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-3">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 font-poppins">
+            <div className="grid gap-2 sm:gap-4 grid-cols-3">
+                <Card className="min-w-0">
+                    <CardHeader className="flex flex-row items-center justify-between p-3 pb-1.5 sm:p-5 sm:pb-2">
+                        <CardTitle className="text-[10px] sm:text-sm font-medium text-slate-600 font-poppins leading-tight truncate">
                             Total
                         </CardTitle>
-                        <CalendarDays className="h-4 w-4 text-primary" />
+                        <CalendarDays className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
                     </CardHeader>
-                    <CardContent>
-                        {loading ? <Skeleton className="h-8 w-12" /> : (
-                            <div className="text-2xl font-bold text-slate-900">{events.length}</div>
+                    <CardContent className="px-3 pb-3 pt-0 sm:px-5 sm:pb-4">
+                        {loading ? <Skeleton className="h-7 w-8 sm:h-8 sm:w-12" /> : (
+                            <div className="text-xl sm:text-2xl font-bold text-slate-900">{events.length}</div>
                         )}
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 font-poppins">
+                <Card className="min-w-0">
+                    <CardHeader className="flex flex-row items-center justify-between p-3 pb-1.5 sm:p-5 sm:pb-2">
+                        <CardTitle className="text-[10px] sm:text-sm font-medium text-slate-600 font-poppins leading-tight truncate">
                             Menunggu
                         </CardTitle>
-                        <Clock className="h-4 w-4 text-amber-500" />
+                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 shrink-0" />
                     </CardHeader>
-                    <CardContent>
-                        {loading ? <Skeleton className="h-8 w-12" /> : (
-                            <div className="text-2xl font-bold text-amber-600">{pendingCount}</div>
+                    <CardContent className="px-3 pb-3 pt-0 sm:px-5 sm:pb-4">
+                        {loading ? <Skeleton className="h-7 w-8 sm:h-8 sm:w-12" /> : (
+                            <div className="text-xl sm:text-2xl font-bold text-amber-600">{pendingCount}</div>
                         )}
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 font-poppins">
+                <Card className="min-w-0">
+                    <CardHeader className="flex flex-row items-center justify-between p-3 pb-1.5 sm:p-5 sm:pb-2">
+                        <CardTitle className="text-[10px] sm:text-sm font-medium text-slate-600 font-poppins leading-tight truncate">
                             Berjalan
                         </CardTitle>
-                        <Zap className="h-4 w-4 text-emerald-500" />
+                        <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 shrink-0" />
                     </CardHeader>
-                    <CardContent>
-                        {loading ? <Skeleton className="h-8 w-12" /> : (
-                            <div className="text-2xl font-bold text-emerald-600">{activeCount}</div>
+                    <CardContent className="px-3 pb-3 pt-0 sm:px-5 sm:pb-4">
+                        {loading ? <Skeleton className="h-7 w-8 sm:h-8 sm:w-12" /> : (
+                            <div className="text-xl sm:text-2xl font-bold text-emerald-600">{activeCount}</div>
                         )}
                     </CardContent>
                 </Card>
@@ -224,13 +222,19 @@ export default function EventsPage() {
                             onChange={setDateRange}
                             placeholder="Filter tanggal"
                         />
-                        <div className="relative max-w-sm">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <Input
+                        <div className="relative max-w-sm group">
+                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <svg className="h-4 w-4 text-slate-500 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <circle cx="11" cy="11" r="8" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
                                 placeholder="Cari kegiatan..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="pl-9"
+                                className="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-300 shadow-sm outline-none transition-all duration-200 focus:border-slate-600 focus:ring-2 focus:ring-slate-600/10 focus:shadow-md hover:border-slate-400"
                             />
                         </div>
                     </div>

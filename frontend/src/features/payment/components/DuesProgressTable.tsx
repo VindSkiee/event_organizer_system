@@ -233,7 +233,7 @@ function ParentRow({ group, index }: { group: GroupProgressSummary; index: numbe
         <td colSpan={12} className="py-4 px-4 text-center">
           <div className="flex items-center justify-center gap-2">
             <AlertCircle className="h-4 w-4 text-blue-400 shrink-0" />
-            <span className="text-xs text-slate-500">Aturan iuran belum diatur untuk RT ini</span>
+            <span className="text-xs text-slate-500">Biaya iuran belum diatur untuk RT ini</span>
           </div>
         </td>
         <td className="py-4 px-4 text-center">
@@ -345,7 +345,7 @@ function ParentMobileCard({ group }: { group: GroupProgressSummary }) {
         </div>
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
           <AlertCircle className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-          <span className="text-xs text-blue-700">Aturan iuran belum diatur untuk RT ini</span>
+          <span className="text-xs text-blue-700">Biaya iuran belum diatur untuk RT ini</span>
         </div>
       </div>
     );

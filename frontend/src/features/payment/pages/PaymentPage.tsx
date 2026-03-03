@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { Input } from "@/shared/ui/input";
 import {
   Select,
   SelectContent,
@@ -12,7 +11,6 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import {
-  Search,
   Users,
   Calendar,
   CheckCircle2,
@@ -271,13 +269,19 @@ export default function PaymentPage() {
 
       {/* Filters Bar */}
       <div className="flex flex-col xl:flex-row gap-3 bg-white p-3 rounded-xl border shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
+        <div className="relative flex-1 group">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+            <svg className="h-4 w-4 text-black group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="11" cy="11" r="8" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+            </svg>
+          </div>
+          <input
+            type="text"
             placeholder={isParentLevel ? "Cari nama RT atau pengurus..." : "Cari nama warga atau telepon..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 w-full border-slate-200"
+            className="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-slate-50 text-black placeholder:text-slate-400 border border-slate-300 shadow-sm outline-none transition-all duration-200 focus:border-slate-600 focus:ring-2 focus:ring-slate-600/10 focus:shadow-md hover:border-slate-400"
           />
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -332,11 +336,11 @@ export default function PaymentPage() {
               </div>
               <div>
                 <h3 className="text-base font-semibold text-slate-900 font-poppins tracking-tight">
-                  Aturan Iuran Belum Diatur
+                  Biaya Iuran Belum Diatur
                 </h3>
                 <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-                  Daftar warga tidak dapat ditampilkan karena aturan iuran untuk RT ini belum dikonfigurasi.
-                  Harap atur aturan iuran terlebih dahulu melalui menu <span className="font-medium text-slate-700">Pengaturan Keuangan</span>.
+                  Daftar warga tidak dapat ditampilkan karena Biaya iuran untuk RT ini belum dikonfigurasi.
+                  Harap atur Biaya iuran terlebih dahulu melalui menu <span className="font-medium text-slate-700">Pengaturan Keuangan</span>.
                 </p>
               </div>
             </div>

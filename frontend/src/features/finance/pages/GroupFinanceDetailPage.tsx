@@ -9,18 +9,28 @@ import {
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { Input } from "@/shared/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/select";
+import { Label } from "@/shared/ui/label";
 import {
   ArrowLeft,
   Wallet,
   UserCircle,
-  Search,
   ArrowDownLeft,
   ArrowUpRight,
   Receipt,
+  SlidersHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { financeService } from "@/features/finance/services/financeService";
+import { DateRangeFilter } from "@/shared/components/DateRangeFilter";
+import type { DateRange } from "@/shared/components/DateRangeFilter";
 import type { GroupFinanceDetail } from "@/shared/types";
 
 function formatRupiah(amount: number): string {
@@ -56,6 +66,17 @@ export default function GroupFinanceDetailPage() {
   const [detail, setDetail] = useState<GroupFinanceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterTab, setFilterTab] = useState<"today" | "all">("all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
+
+  // Advanced filters
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<"all" | "manual" | "qris" | "va" | "ewallet" | "card">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "success" | "failed">("all");
+  const [filterCategory, setFilterCategory] = useState<"all" | "iuran" | "kegiatan" | "pengajuan">("all");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
 
   // Determine correct back path based on role
   const userRole = (() => {
@@ -89,9 +110,69 @@ export default function GroupFinanceDetailPage() {
     }
   };
 
-  const filteredTx = (detail?.transactions || []).filter(
-    (tx) => tx.description.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredTx = (detail?.transactions || []).filter((tx) => {
+    const matchSearch = tx.description.toLowerCase().includes(search.toLowerCase());
+    if (!matchSearch) return false;
+
+    // Type filter
+    const isIncome = tx.type === "INCOME" || tx.type === "CREDIT";
+    if (filterType === "income" && !isIncome) return false;
+    if (filterType === "expense" && isIncome) return false;
+
+    // Tab: today
+    const txDate = new Date(tx.createdAt);
+    if (filterTab === "today") {
+      const today = new Date();
+      if (
+        txDate.getDate() !== today.getDate() ||
+        txDate.getMonth() !== today.getMonth() ||
+        txDate.getFullYear() !== today.getFullYear()
+      ) return false;
+    }
+
+    // Date range
+    if (dateRange?.from) {
+      const d = new Date(txDate);
+      d.setHours(0, 0, 0, 0);
+      const from = new Date(dateRange.from);
+      from.setHours(0, 0, 0, 0);
+      if (d < from) return false;
+      if (dateRange.to) {
+        const to = new Date(dateRange.to);
+        to.setHours(23, 59, 59, 999);
+        if (d > to) return false;
+      }
+    }
+    // Advanced filters
+    if (filterPaymentMethod === "manual" && tx.paymentGatewayTx) return false;
+    if (filterPaymentMethod === "qris" && tx.paymentGatewayTx?.methodCategory !== "qris") return false;
+    if (filterPaymentMethod === "va" && tx.paymentGatewayTx?.methodCategory !== "bank_transfer") return false;
+    if (filterPaymentMethod === "ewallet" && !["gopay", "shopeepay", "ovo", "dana"].includes(tx.paymentGatewayTx?.methodCategory || "")) return false;
+    if (filterPaymentMethod === "card" && tx.paymentGatewayTx?.methodCategory !== "credit_card") return false;
+    if (filterStatus === "success") {
+      if (tx.paymentGatewayTx && !["settlement", "capture"].includes(tx.paymentGatewayTx.status)) return false;
+    }
+    if (filterStatus === "failed") {
+      if (!tx.paymentGatewayTx) return false;
+      if (["settlement", "capture"].includes(tx.paymentGatewayTx.status)) return false;
+    }
+    if (filterCategory === "iuran" && !/iuran/i.test(tx.description)) return false;
+    if (filterCategory === "kegiatan" && !/kegiatan|acara|event/i.test(tx.description)) return false;
+    if (filterCategory === "pengajuan" && !/pengajuan|dana/i.test(tx.description)) return false;
+    const minAmt = Number(minAmount);
+    const maxAmt = Number(maxAmount);
+    if (minAmount && !isNaN(minAmt) && tx.amount < minAmt) return false;
+    if (maxAmount && !isNaN(maxAmt) && tx.amount > maxAmt) return false;
+    return true;
+  });
+
+  const advancedFilterCount = [
+    filterPaymentMethod !== "all",
+    filterStatus !== "all",
+    filterCategory !== "all",
+    !!minAmount,
+    !!maxAmount,
+  ].filter(Boolean).length;
 
   const incomeCount = (detail?.transactions || []).filter(
     (tx) => tx.type === "INCOME" || tx.type === "CREDIT"
@@ -205,7 +286,7 @@ export default function GroupFinanceDetailPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 font-poppins flex items-center gap-2">
               <Receipt className="h-4 w-4 text-amber-500" />
-              Aturan Iuran
+              Iuran per Bulan
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -238,16 +319,192 @@ export default function GroupFinanceDetailPage() {
               {incomeCount} pemasukan · {expenseCount} pengeluaran
             </p>
           </div>
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Cari transaksi..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+        </div>
+
+        {/* === FILTER BAR RESPONSIVE === */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          
+          {/* Baris Atas di Mobile (Tabs & Type Select) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto shrink-0">
+            {/* Tab: Hari Ini / Semua */}
+            <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
+              <button
+                onClick={() => { setFilterTab("today"); setDateRange(undefined); }}
+                className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  filterTab === "today" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Hari Ini
+              </button>
+              <button
+                onClick={() => setFilterTab("all")}
+                className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  filterTab === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Semua
+              </button>
+            </div>
+
+            {/* Filter Tanggal (Muncul jika Semua) */}
+            {filterTab === "all" && (
+              <div className="w-full sm:w-auto">
+                <DateRangeFilter
+                  value={dateRange}
+                  onChange={setDateRange}
+                  placeholder="Pilih rentang tanggal"
+                />
+              </div>
+            )}
+
+            {/* Type filter */}
+            <div className="w-full sm:w-[160px] shrink-0">
+              <Select value={filterType} onValueChange={(v) => setFilterType(v as "all" | "income" | "expense")}>
+                <SelectTrigger className="h-10 w-full rounded-xl border-slate-200 bg-white text-sm shadow-sm focus:ring-primary/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Tipe</SelectItem>
+                  <SelectItem value="income">Pemasukan</SelectItem>
+                  <SelectItem value="expense">Pengeluaran</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Baris Bawah di Mobile (Search & Advanced Toggle) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full">
+            {/* Search Input */}
+            <div className="relative w-full lg:max-w-md group">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="11" cy="11" r="8" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Cari deskripsi atau ID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-10 pl-10 pr-4 rounded-xl text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-200 shadow-sm outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/10 hover:border-slate-300"
+              />
+            </div>
+
+            {/* Actions: Advanced Filter & Reset */}
+            <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 px-1 sm:px-0">
+              <button
+                onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                  showAdvancedFilter || advancedFilterCount > 0 ? "text-primary" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>Filter Lanjut</span>
+                {advancedFilterCount > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white shadow-sm">
+                    {advancedFilterCount}
+                  </span>
+                )}
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showAdvancedFilter ? "rotate-180" : ""}`} />
+              </button>
+
+              {(filterType !== "all" || dateRange?.from || filterTab === "today" || search || advancedFilterCount > 0) && (
+                <button
+                  onClick={() => { 
+                    setFilterTab("all"); setDateRange(undefined); setFilterType("all"); 
+                    setSearch(""); setFilterPaymentMethod("all"); setFilterStatus("all"); 
+                    setFilterCategory("all"); setMinAmount(""); setMaxAmount("");
+                  }}
+                  className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors"
+                >
+                  Reset Semua
+                </button>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* === ADVANCED FILTER PANEL === */}
+        {showAdvancedFilter && (
+          <Card className="border border-primary/20 bg-primary/5 shadow-none overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 rounded-xl">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                {/* Method */}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Metode Pembayaran</Label>
+                  <Select value={filterPaymentMethod} onValueChange={(v) => setFilterPaymentMethod(v as "all" | "manual" | "qris" | "va" | "ewallet" | "card")}>
+                    <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-white text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Metode</SelectItem>
+                      <SelectItem value="manual">Manual / Tunai</SelectItem>
+                      <SelectItem value="qris">QRIS</SelectItem>
+                      <SelectItem value="va">Virtual Account</SelectItem>
+                      <SelectItem value="ewallet">E-Wallet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Status */}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status Transaksi</Label>
+                  <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as "all" | "success" | "failed")}>
+                    <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-white text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Status</SelectItem>
+                      <SelectItem value="success">Berhasil (Success)</SelectItem>
+                      <SelectItem value="failed">Gagal / Expired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Category */}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kategori</Label>
+                  <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v as "all" | "iuran" | "kegiatan" | "pengajuan")}>
+                    <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-white text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Kategori</SelectItem>
+                      <SelectItem value="iuran">Iuran Warga</SelectItem>
+                      <SelectItem value="kegiatan">Acara / Kegiatan</SelectItem>
+                      <SelectItem value="pengajuan">Pengajuan Dana</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Amount Range */}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Rentang Nominal</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      placeholder="Min (Rp)"
+                      value={minAmount}
+                      onChange={(e) => setMinAmount(e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    />
+                    <span className="text-slate-400 text-xs">—</span>
+                    <input
+                      type="number"
+                      placeholder="Maks (Rp)"
+                      value={maxAmount}
+                      onChange={(e) => setMaxAmount(e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg text-sm bg-white text-slate-800 placeholder:text-slate-400 border border-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {loading ? (
           <Card>
@@ -262,7 +519,9 @@ export default function GroupFinanceDetailPage() {
             <CardContent className="flex flex-col items-center justify-center py-10 text-center">
               <Wallet className="h-10 w-10 text-slate-300 mb-3" />
               <p className="text-sm text-slate-500 font-medium">
-                {search ? "Transaksi tidak ditemukan." : "Belum ada transaksi."}
+                {search || filterType !== "all" || dateRange?.from || filterTab === "today" || advancedFilterCount > 0
+                  ? "Transaksi tidak ditemukan."
+                  : "Belum ada transaksi."}
               </p>
             </CardContent>
           </Card>

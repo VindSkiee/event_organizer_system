@@ -164,9 +164,7 @@ export default function RoleLabelSettingsPage() {
                       </CardTitle>
                       <CardDescription>{meta.description}</CardDescription>
                     </div>
-                    <p className="text-xs text-slate-400">
-                      Tampilan: <span className="font-medium text-slate-500">{meta.default}</span>
-                    </p>
+                    
                   </div>
                 </CardHeader>
 

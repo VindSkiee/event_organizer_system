@@ -44,6 +44,9 @@ export interface DataTableProps<T> {
     showRowNumber?: boolean;
     rowNumberPadded?: boolean;
 
+    /** Override the default label:value card layout for mobile (<md) with a custom renderer. */
+    renderMobileCard?: (item: T, index: number) => ReactNode;
+
     footerText?: string;
     className?: string;
 }
@@ -77,6 +80,7 @@ export function DataTable<T>({
     rowClassName,
     showRowNumber = false,
     rowNumberPadded = false,
+    renderMobileCard,
     footerText,
     className,
 }: DataTableProps<T>) {
@@ -120,33 +124,40 @@ export function DataTable<T>({
                     <div
                         key={keyExtractor(item)}
                         className={cn(
-                            "px-4 py-4 space-y-2.5",
+                            "px-4 py-3.5",
+                            !renderMobileCard && "space-y-2.5",
                             onRowClick && "cursor-pointer hover:bg-slate-50/80 active:bg-slate-100 transition-colors",
                             rowClassName?.(item, idx),
                         )}
                         onClick={onRowClick ? () => onRowClick(item) : undefined}
                     >
-                        {showRowNumber && (
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">No.</span>
-                                <div className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-slate-100/50 text-[11px] font-medium text-slate-500">
-                                    {rowNumberPadded ? (idx + 1).toString().padStart(2, "0") : idx + 1}
-                                </div>
-                            </div>
-                        )}
-                        {columns.map((col) => {
-                            const alignment = col.align ?? "left";
-                            return (
-                                <div key={col.key} className="flex items-start justify-between gap-3">
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 pt-0.5 min-w-[90px]">
-                                        {col.header}
-                                    </span>
-                                    <div className={cn("text-sm flex-1", ALIGN_CLASS[alignment], col.cellClassName)}>
-                                        {col.render(item, idx)}
+                        {renderMobileCard ? (
+                            renderMobileCard(item, idx)
+                        ) : (
+                            <>
+                                {showRowNumber && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">No.</span>
+                                        <div className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-slate-100/50 text-[11px] font-medium text-slate-500">
+                                            {rowNumberPadded ? (idx + 1).toString().padStart(2, "0") : idx + 1}
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                )}
+                                {columns.map((col) => {
+                                    const alignment = col.align ?? "left";
+                                    return (
+                                        <div key={col.key} className="flex items-start justify-between gap-3">
+                                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 pt-0.5 min-w-[90px]">
+                                                {col.header}
+                                            </span>
+                                            <div className={cn("text-sm flex-1", ALIGN_CLASS[alignment], col.cellClassName)}>
+                                                {col.render(item, idx)}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </>
+                        )}
                     </div>
                 ))}
             </div>
