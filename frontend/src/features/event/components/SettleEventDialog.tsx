@@ -81,8 +81,17 @@ export function SettleEventDialog({
 
   const isValid = description.trim().length >= 10;
 
+  // Cleanup object URLs saat dialog ditutup tanpa submit
+  const handleClose = () => {
+    photoPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setDescription("");
+    setPhotoFiles([]);
+    setPhotoPreviews([]);
+    onClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

@@ -9,6 +9,7 @@ import {
 import { Skeleton } from "@/shared/ui/skeleton";
 import { ArrowDownLeft, ArrowUpRight, ArrowRight, Wallet, ReceiptText } from "lucide-react";
 import type { Transaction } from "@/shared/types";
+import { useMemo } from "react";
 
 function formatRupiah(amount: number): string {
   return new Intl.NumberFormat("id-ID", {
@@ -47,10 +48,12 @@ export function RecentTransactions({
   limit = 5,
 }: RecentTransactionsProps) {
   // Filter to only show transactions from the user's own wallet/group
-  const filtered = walletId
-    ? transactions.filter((tx) => tx.walletId === walletId)
+  const filtered = useMemo(() => {
+  return walletId
+    ? transactions.filter(tx => tx.walletId === walletId)
     : transactions;
-  const items = filtered.slice(0, limit);
+}, [transactions, walletId]);
+  const items = useMemo(() => filtered.slice(0, limit), [filtered, limit]);
 
   return (
     <Card className="flex flex-col border-0 ring-1 ring-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] rounded-2xl overflow-hidden h-full">

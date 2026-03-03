@@ -6,17 +6,19 @@ import type { EventItem } from "@/shared/types";
 
 function formatRupiah(amount: number | string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (!isFinite(num)) return "—";
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(num);
+  }).format(num || 0);
 }
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Tidak ditentukan";
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "Tidak ditentukan";
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric",
     month: "long",

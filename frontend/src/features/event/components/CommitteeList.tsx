@@ -1,7 +1,8 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
 import { Users } from "lucide-react";
-import type { EventItem } from "@/shared/types";
+import type { EventItem, EventParticipant } from "@/shared/types";
 import { getRoleLabel } from "@/shared/helpers/roleLabel"; 
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar";
 import { getAvatarUrl } from "@/shared/helpers/avatarUrl";
@@ -24,9 +25,9 @@ export function CommitteeList({ event, currentUserId }: CommitteeListProps) {
   // Ambil hanya partisipan dengan role COMMITTEE
   const committeeMembers = event.participants?.filter((p) => p.role === "COMMITTEE") || [];
 
-  // === FUNGSI PENGURUTAN PRIORITAS ===
-  const sortedCommittee = [...committeeMembers].sort((a, b) => {
-    const getPriority = (participant: any) => {
+  // === FUNGSI PENGURUTAN PRIORITAS (memoized) ===
+  const sortedCommittee = useMemo(() => {
+    const getPriority = (participant: EventParticipant) => {
       // Prioritas 1: Pembuat Acara (Creator)
       if (participant.userId === event.createdById) return 1;
       
@@ -41,18 +42,20 @@ export function CommitteeList({ event, currentUserId }: CommitteeListProps) {
       return 4;
     };
 
-    const priorityA = getPriority(a);
-    const priorityB = getPriority(b);
+    return [...committeeMembers].sort((a, b) => {
+      const priorityA = getPriority(a);
+      const priorityB = getPriority(b);
 
-    // Jika prioritasnya sama, urutkan berdasarkan nama sesuai abjad
-    if (priorityA === priorityB) {
-      const nameA = a.user?.fullName || "";
-      const nameB = b.user?.fullName || "";
-      return nameA.localeCompare(nameB);
-    }
+      // Jika prioritasnya sama, urutkan berdasarkan nama sesuai abjad
+      if (priorityA === priorityB) {
+        const nameA = a.user?.fullName || "";
+        const nameB = b.user?.fullName || "";
+        return nameA.localeCompare(nameB);
+      }
 
-    return priorityA - priorityB;
-  });
+      return priorityA - priorityB;
+    });
+  }, [committeeMembers, event.createdById, currentUserId]);
 
   return (
     <Card className="border-slate-200 shadow-sm flex flex-col h-full max-h-[500px]">
@@ -73,7 +76,7 @@ export function CommitteeList({ event, currentUserId }: CommitteeListProps) {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {sortedCommittee.map((participant, idx) => {
+            {sortedCommittee.map((participant) => {
               const systemRole = participant.user?.roleType || participant.user?.role?.type || "RESIDENT";
               const groupName = participant.user?.communityGroup?.name;
               
@@ -84,7 +87,7 @@ export function CommitteeList({ event, currentUserId }: CommitteeListProps) {
 
               return (
                 <div
-                  key={idx}
+                  key={participant.userId}
                   className={`flex flex-col sm:flex-row sm:items-center justify-between px-3 py-2.5 rounded-xl bg-white border shadow-sm transition-all gap-2 group ${
                     isSelf ? "border-emerald-200 bg-emerald-50/30" : "border-slate-100 hover:border-primary/20 hover:shadow-md"
                   }`}

@@ -40,11 +40,17 @@ export function useBadgeNotifications(): BadgeCounts {
       return;
     }
 
+    // Skip fetches when tab is hidden to save bandwidth
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return;
+    }
+
     try {
       const user = readUser();
       if (!user) return;
 
       const role = user.role as string;
+      if (!role) return; // Guard undefined role
       const result: BadgeCounts = { ...EMPTY };
 
       // Parallel fetch all badge sources

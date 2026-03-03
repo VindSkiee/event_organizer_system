@@ -74,7 +74,10 @@ export function EditEventDialog({
   }, [event]);
 
   const handleSubmit = () => {
-    const budget = parseFloat(form.budgetEstimated.replace(/\D/g, ""));
+    const raw = form.budgetEstimated.replace(/\D/g, "");
+    const budget = raw ? parseFloat(raw) : 0;
+    if (!isFinite(budget) || budget <= 0) return; // Guard NaN
+    if (!form.title.trim() || !form.description.trim()) return;
     onSubmit({
       title: form.title.trim(),
       description: form.description.trim(),

@@ -98,7 +98,12 @@ export function CreateEventDialog({
   };
 
   const handleSubmit = () => {
-    const budget = parseFloat(form.budgetEstimated.replace(/\D/g, ""));
+    const raw = form.budgetEstimated.replace(/\D/g, "");
+    const budget = raw ? parseFloat(raw) : 0;
+    if (!isFinite(budget) || budget <= 0) return; // Guard NaN dan nilai invalid
+    
+    // Validasi field wajib
+    if (!form.title.trim() || !form.description.trim()) return;
     
     // === 2. GABUNGKAN ID PANITIA DENGAN ID BENDAHARA SECARA OTOMATIS ===
     let finalCommitteeIds = [...committeeUserIds];

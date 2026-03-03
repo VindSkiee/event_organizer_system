@@ -130,8 +130,18 @@ export function ExpenseReportDialog({
   const formatRp = (n: number) =>
     `Rp${n.toLocaleString("id-ID")}`;
 
+  // Cleanup object URLs saat dialog ditutup tanpa submit
+  const handleClose = () => {
+    receiptPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setItems([{ title: "", amount: "" }]);
+    setRemainingAmount("");
+    setReceiptFiles([]);
+    setReceiptPreviews([]);
+    onClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

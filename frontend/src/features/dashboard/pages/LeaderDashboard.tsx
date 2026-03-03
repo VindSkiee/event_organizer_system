@@ -10,7 +10,6 @@ import type {
   WalletDetail,
   EventItem,
   GroupItem,
-  UserItem,
   FundRequest,
 } from "@/shared/types";
 import {
@@ -29,7 +28,7 @@ export default function LeaderDashboard() {
   const [wallet, setWallet] = useState<WalletDetail | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [groups, setGroups] = useState<GroupItem[]>([]);
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const [usersCount, setUsersCount] = useState(0);
   const [fundRequests, setFundRequests] = useState<FundRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [duesRuleNotSet, setDuesRuleNotSet] = useState(false);
@@ -38,27 +37,35 @@ export default function LeaderDashboard() {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const [walletRes, eventsRes, groupsRes, usersRes, fundRequestsRes] =
+        const [walletRes, eventsRes, groupsRes, fundRequestsRes] =
           await Promise.allSettled([
             financeService.getWalletDetails(),
             eventService.getAll(),
             groupService.getAll(),
-            userService.getAll(),
             fundRequestService.getAll(),
           ]);
 
         if (walletRes.status === "fulfilled") setWallet(walletRes.value);
         if (eventsRes.status === "fulfilled") setEvents(eventsRes.value);
-        if (groupsRes.status === "fulfilled") setGroups(groupsRes.value);
-        if (usersRes.status === "fulfilled") setUsers(usersRes.value);
         if (fundRequestsRes.status === "fulfilled") setFundRequests(fundRequestsRes.value);
 
-        const failures = [walletRes, eventsRes, groupsRes, usersRes, fundRequestsRes].filter(
+        if (groupsRes.status === "fulfilled") {
+          setGroups(groupsRes.value);
+          const rtGroups = groupsRes.value.filter((g) => g.type === "RT");
+          let total = 0;
+          for (const rt of rtGroups) {
+            const count = await userService.getCountByGroup(rt.id).catch(() => 0);
+            total += count;
+          }
+          setUsersCount(total);
+        }
+
+        const failures = [walletRes, eventsRes, groupsRes, fundRequestsRes].filter(
           (r) => r.status === "rejected"
         );
-        if (failures.length > 0 && failures.length < 5) {
+        if (failures.length > 0 && failures.length < 4) {
           toast.error("Sebagian data gagal dimuat.");
-        } else if (failures.length === 5) {
+        } else if (failures.length === 4) {
           toast.error("Gagal memuat data dashboard.");
         }
       } catch {
@@ -133,7 +140,7 @@ export default function LeaderDashboard() {
       )}
 
       <StatsCards
-        usersCount={users.length}
+        usersCount={usersCount}
         rtCount={rtGroups.length}
         wallet={wallet}
         activeEventsCount={activeEvents.length}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Button } from "@/shared/ui/button";
@@ -86,26 +86,20 @@ export default function FinanceDashboard() {
     fetchAll();
   }, []);
 
-  // Current user
-  const currentUserId = (() => {
+  // Current user (cached, parse localStorage only once)
+  const { currentUserId, currentUserGroupId } = useMemo(() => {
     try {
       const raw = localStorage.getItem("user");
-      if (!raw) return null;
-      return JSON.parse(raw).id as string;
+      if (!raw) return { currentUserId: null, currentUserGroupId: null };
+      const parsed = JSON.parse(raw);
+      return {
+        currentUserId: (parsed.id as string) ?? null,
+        currentUserGroupId: (parsed.communityGroupId as number | undefined) ?? null,
+      };
     } catch {
-      return null;
+      return { currentUserId: null, currentUserGroupId: null };
     }
-  })();
-
-  const currentUserGroupId = (() => {
-    try {
-      const raw = localStorage.getItem("user");
-      if (!raw) return null;
-      return JSON.parse(raw).communityGroupId as number | undefined;
-    } catch {
-      return null;
-    }
-  })();
+  }, []);
 
   // Derived data
   const ownTx = wallet

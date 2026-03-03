@@ -273,18 +273,17 @@ export function ActionRequired({
                 </p>
               </div>
             </div>
-            <Link to={fundRequestsPath}>
-              <button
-                className="group flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 hover:gap-2"
-                style={{
-                  background: "linear-gradient(135deg, #10b981, #059669)",
-                  color: "white",
-                  boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
-                }}
-              >
-                Lihat
-                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </button>
+            <Link
+              to={fundRequestsPath}
+              className="group flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 hover:gap-2"
+              style={{
+                background: "linear-gradient(135deg, #10b981, #059669)",
+                color: "white",
+                boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
+              }}
+            >
+              Lihat
+              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
           </div>
         )}

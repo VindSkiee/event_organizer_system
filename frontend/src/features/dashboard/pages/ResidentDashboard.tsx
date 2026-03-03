@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -88,14 +88,14 @@ export default function ResidentDashboard() {
   const [pendingPayments, setPendingPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const user = (() => {
+  const user = useMemo(() => {
     try {
       const stored = localStorage.getItem("user");
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
     }
-  })();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -133,7 +133,7 @@ export default function ResidentDashboard() {
   const paidFullYear = !hasUnpaidBill && bill !== null && bill.nextBillYear > currentYear;
 
   const approvedEvents = events.filter((e) =>
-    ["APPROVED", "FUNDED", "ONGOING", "COMPLETED", "SETTLED", "CANCELLED"].includes(e.status)
+    ["APPROVED", "FUNDED", "ONGOING", "COMPLETED", "SETTLED"].includes(e.status)
   );
 
   return (
@@ -252,7 +252,7 @@ export default function ResidentDashboard() {
                     {bill?.baseMonthlyAmount && bill.baseMonthlyAmount > 0 && (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className="text-xs text-slate-400">Tarif Dasar:</span>
-                        {bill?.breakdown.map((item, idx) => {
+                        {bill?.breakdown?.map((item, idx) => {
                           // Karena item.amount dari backend sudah dikalikan bulan nunggak, 
                           // kita harus membaginya kembali untuk menampilkan tarif ASLI per bulan di Badge ini.
                           const baseAmountPerType = bill.unpaidMonthsCount > 0

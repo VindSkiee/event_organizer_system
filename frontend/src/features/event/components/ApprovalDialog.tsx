@@ -87,7 +87,7 @@ export function ApprovalDialog({
           </Button>
           <Button
             onClick={onSubmit}
-            disabled={submitting}
+            disabled={submitting || (action === "reject" && !notes.trim())}
             variant={action === "approve" ? "default" : "destructive"}
           >
             {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}

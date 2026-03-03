@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
 import {
@@ -45,6 +46,12 @@ export function ApprovalWorkflow({ event }: ApprovalWorkflowProps) {
     return null;
   }
 
+  // Sort once with a copy to avoid mutating the prop array
+  const sortedApprovals = useMemo(
+    () => [...event.approvals!].sort((a, b) => a.stepOrder - b.stepOrder),
+    [event.approvals]
+  );
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -56,8 +63,7 @@ export function ApprovalWorkflow({ event }: ApprovalWorkflowProps) {
       <CardContent>
         {/* Mobile Card View */}
         <div className="md:hidden divide-y divide-slate-100 rounded-lg border overflow-hidden">
-          {event.approvals
-            .sort((a, b) => a.stepOrder - b.stepOrder)
+          {sortedApprovals
             .map((approval) => (
               <div key={approval.id} className="px-4 py-3.5 space-y-2.5 bg-white">
                 <div className="flex items-center justify-between gap-2">
@@ -101,8 +107,7 @@ export function ApprovalWorkflow({ event }: ApprovalWorkflowProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {event.approvals
-                .sort((a, b) => a.stepOrder - b.stepOrder)
+              {sortedApprovals
                 .map((approval) => (
                   <TableRow key={approval.id}>
                     <TableCell className="font-medium text-center">{approval.stepOrder}</TableCell>

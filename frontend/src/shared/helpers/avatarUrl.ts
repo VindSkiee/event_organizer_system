@@ -14,7 +14,9 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
  */
 export function getAvatarUrl(profileImage: string | null | undefined): string | null {
   if (!profileImage) return null;
-  // Already absolute URL
-  if (profileImage.startsWith("http")) return profileImage;
-  return `${API_BASE}${profileImage}`;
+  // Already absolute URL (http, https, or protocol-relative)
+  if (profileImage.startsWith("http") || profileImage.startsWith("//")) return profileImage;
+  // Ensure separator between base and path
+  const sep = profileImage.startsWith("/") ? "" : "/";
+  return `${API_BASE}${sep}${profileImage}`;
 }

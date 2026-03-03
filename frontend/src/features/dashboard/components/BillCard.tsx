@@ -45,7 +45,7 @@ export function BillCard({ bill, loading }: BillCardProps) {
             >
               {formatRupiah(bill.totalAmount)}
             </div>
-            {bill.breakdown.length > 0 ? (
+            {bill.breakdown?.length ? (
               <div className="mt-2 space-y-1">
                 {bill.breakdown.map((item, idx) => (
                   <div

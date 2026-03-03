@@ -26,22 +26,30 @@ const DEFAULT_LABELS: Record<string, string> = {
 // In-memory cache of custom labels
 let customLabels: Record<string, string> = {};
 let isLoaded = false;
+let loadPromise: Promise<void> | null = null;
 
 /**
  * Load custom role labels from the backend.
  * Call once on dashboard mount. Safe to call multiple times.
+ * De-duplicates concurrent calls to prevent race conditions.
  */
 export async function loadCustomRoleLabels(): Promise<void> {
-  // Tambahkan baris ini agar API tidak ditembak berulang kali
-  if (isLoaded) return; 
+  if (isLoaded) return;
+  if (loadPromise) return loadPromise;
 
-  try {
-    customLabels = await settingsService.getRoleLabelsMap();
-    isLoaded = true;
-  } catch {
-    // Silently fail — will use defaults
-    // Do NOT set isLoaded = true here, so the next call can retry
-  }
+  loadPromise = (async () => {
+    try {
+      customLabels = await settingsService.getRoleLabelsMap();
+      isLoaded = true;
+    } catch {
+      // Silently fail — will use defaults
+      // Do NOT set isLoaded = true here, so the next call can retry
+    } finally {
+      loadPromise = null;
+    }
+  })();
+
+  return loadPromise;
 }
 
 /**

@@ -94,9 +94,8 @@ export const userService = {
   uploadAvatar: async (file: File): Promise<UserItem> => {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await api.patch<ApiResponse<UserItem>>("/users/profile/avatar", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    // Jangan set Content-Type manual — Axios/browser akan auto-set boundary untuk FormData
+    const response = await api.patch<ApiResponse<UserItem>>("/users/profile/avatar", formData);
     return response.data.data;
   },
 };
