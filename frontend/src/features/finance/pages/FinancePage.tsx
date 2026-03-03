@@ -38,6 +38,7 @@ import {
   Plus,
   Users,
   ChevronRight,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { financeService } from "@/features/finance/services/financeService";
@@ -50,7 +51,7 @@ import type {
   ChildWalletInfo,
   EventItem,
 } from "@/shared/types";
-import { TransactionTable, FundRequestTable, ChildrenWalletsSection } from "@/features/finance/components";
+import { TransactionTable, FundRequestTable, ChildrenWalletsSection, DownloadReportDialog } from "@/features/finance/components";
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { DateRangeFilter } from "@/shared/components/DateRangeFilter";
 import type { DateRange } from "@/shared/components/DateRangeFilter";
@@ -129,6 +130,10 @@ export default function FinancePage() {
 
   // Dues rule badge – check if config missing
   const [duesNotConfigured, setDuesNotConfigured] = useState(false);
+
+  // Download Report Dialog
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
+  const canDownloadReport = userRole === "LEADER" || userRole === "ADMIN";
 
   // Role-aware paths
   // Role-aware paths
@@ -374,6 +379,16 @@ export default function FinancePage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
+          {canDownloadReport && (
+            <Button
+              variant="outline"
+              onClick={() => setShowDownloadDialog(true)}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Unduh Laporan</span>
+            </Button>
+          )}
           {canCreateTransaction && (
             <Button
               variant="outline"
@@ -834,6 +849,15 @@ export default function FinancePage() {
         variant="default"
         onConfirm={executeApproveFR}
       />
+
+      {/* Download Report Dialog (LEADER & ADMIN only) */}
+      {canDownloadReport && (
+        <DownloadReportDialog
+          open={showDownloadDialog}
+          onClose={() => setShowDownloadDialog(false)}
+          childGroups={childrenWallets}
+        />
+      )}
     </div>
   );
 }

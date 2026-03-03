@@ -58,17 +58,20 @@ export function WargaTable({
   }
 
   if (users.length === 0) {
+    if (searchQuery) {
+      return (
+        <div className="flex items-center justify-center py-16">
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
         <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
           <Users className="h-6 w-6 text-slate-400" />
         </div>
-        <p className="text-sm font-medium text-slate-600">
-          {searchQuery ? "Warga tidak ditemukan" : "Belum ada data warga"}
-        </p>
-        <p className="text-xs text-slate-400 mt-1">
-          {searchQuery ? "Coba gunakan kata kunci lain" : "Mulai dengan menambahkan warga baru"}
-        </p>
+        <p className="text-sm font-medium text-slate-600">Belum ada data warga</p>
+        <p className="text-xs text-slate-400 mt-1">Mulai dengan menambahkan warga baru</p>
       </div>
     );
   }

@@ -7,8 +7,11 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
-  Query
+  Query,
+  Res,
+  Header,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { SystemRoleType } from '@prisma/client';
 
 // Decorators
@@ -19,16 +22,19 @@ import type { ActiveUserData } from '@common/decorators/active-user.decorator';
 // Services
 import { FinanceService } from './services/finance.service';
 import { DuesService } from './services/dues.service';
+import { ReportService } from './services/report.service';
 
 // DTOs
 import { CreateManualTransactionDto } from './dto/create-manual-transaction.dto';
 import { SetDuesDto } from './dto/set-dues.dto';
+import { DownloadReportDto } from './dto/download-report.dto';
 
 @Controller('finance')
 export class FinanceController {
   constructor(
     private readonly financeService: FinanceService,
     private readonly duesService: DuesService,
+    private readonly reportService: ReportService,
   ) { }
 
   // ==========================================
@@ -188,6 +194,31 @@ export class FinanceController {
     @Query('scope') scope: 'RT' | 'RW' = 'RT',
   ) {
     return this.financeService.getTransparencyHistory(user, scope);
+  }
+
+  // ==========================================
+  // 8. UNDUH LAPORAN KEUANGAN (PDF)
+  // ==========================================
+
+  @Roles(SystemRoleType.LEADER, SystemRoleType.ADMIN)
+  @Get('report/download')
+  @Header('Content-Type', 'application/pdf')
+  async downloadReport(
+    @Query() dto: DownloadReportDto,
+    @ActiveUser() user: ActiveUserData,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.reportService.generateReport(dto, user);
+
+    const filename = `laporan-keuangan-${dto.reportType}-${new Date().toISOString().slice(0, 10)}.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(pdfBuffer.length),
+    });
+
+    res.send(pdfBuffer);
   }
 
   

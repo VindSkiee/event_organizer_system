@@ -38,6 +38,8 @@ import {
   EditWargaDialog,
   RtMemberTable,
   WargaTable,
+  WargaSearchBar,
+  WargaEmptySearchState,
 } from "@/features/organization/components";
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 
@@ -272,18 +274,51 @@ function LeaderView({ navigate }: { navigate: ReturnType<typeof useNavigate> }) 
           )}
         </TabsContent>
 
-        <TabsContent value="data-warga" className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input placeholder="Cari warga..." value={searchWarga} onChange={(e) => setSearchWarga(e.target.value)} className="pl-9 h-10" />
-            </div>
-            <CreateWargaDialog groups={groups} onSuccess={() => { fetchData(); refetchSearch(searchWarga); }} />
+        <TabsContent value="data-warga" className="space-y-5">
+          {/* Toolbar: Search + Create Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <WargaSearchBar
+              value={searchWarga}
+              onChange={setSearchWarga}
+              isSearching={isSearching}
+              resultCount={searchWarga.length >= 3 ? users.length : undefined}
+            />
+            <CreateWargaDialog
+              groups={groups}
+              onSuccess={() => { fetchData(); refetchSearch(searchWarga); }}
+            />
           </div>
-          {!searchWarga ? (
-            <EmptyState text="Cari Warga" subtext="Ketikkan nama warga pada kolom pencarian di atas untuk menampilkan data" />
+
+          {/* Divider + info label saat ada hasil */}
+          {searchWarga.length >= 3 && !isSearching && users.length > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-100" />
+              <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
+                Menampilkan {users.length} warga untuk "{searchWarga}"
+              </span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+          )}
+
+          {/* Content */}
+          {/* Jika input < 3 huruf, TAMPILKAN EMPTY STATE (Pesan Mulai Mencari) */}
+          {searchWarga.length < 3 ? (
+            <WargaEmptySearchState searchQuery={searchWarga} />
           ) : (
-            <WargaTable users={users} loading={isSearching} searchQuery={searchWarga} currentUserId={getUserIdFromStorage() || undefined} onUserClick={(userId) => navigate(`/dashboard/users/${userId}`)} onEdit={openEditUser} onDelete={handleDeleteUser} />
+            /* Jika input >= 3 huruf, periksa apakah datanya kosong atau ada */
+            users.length === 0 && !isSearching ? (
+              <WargaEmptySearchState searchQuery={searchWarga} />
+            ) : (
+              <WargaTable
+                users={users}
+                loading={isSearching}
+                searchQuery={searchWarga}
+                currentUserId={getUserIdFromStorage() || undefined}
+                onUserClick={(userId) => navigate(`/dashboard/users/${userId}`)}
+                onEdit={openEditUser}
+                onDelete={handleDeleteUser}
+              />
+            )
           )}
         </TabsContent>
       </Tabs>
@@ -811,7 +846,7 @@ function ReadOnlyMemberTable({ members, loading, navigate, showDetail, currentUs
         <p className="text-xs text-slate-400 mt-1">Anggota akan muncul di sini</p>
       </div>
     );
-}
+  }
 
   const getRoleBadgeClass = (rt: string) => {
     if (rt === "LEADER") return "bg-indigo-100 text-indigo-700";
