@@ -13,6 +13,8 @@ import { Button } from "@/shared/ui/button";
 import {
   Wallet,
   CreditCard,
+  Download,
+  Loader2,
   ArrowRight,
   CalendarDays,
   AlertCircle,
@@ -25,6 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { financeService } from "@/features/finance/services/financeService";
+import { downloadFinanceReport } from "@/features/finance/services/reportService";
 import { eventService } from "@/features/event/services/eventService";
 import { paymentService } from "@/features/payment/services/paymentService";
 import type { TransparencyBalance, MyBill, EventItem, PaymentItem } from "@/shared/types";
@@ -86,6 +89,7 @@ export default function ResidentDashboard() {
   const [bill, setBill] = useState<MyBill | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PaymentItem[]>([]);
+  const [downloadingReport, setDownloadingReport] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const user = useMemo(() => {
@@ -126,6 +130,25 @@ export default function ResidentDashboard() {
     fetchData();
   }, []);
 
+  const handleDownloadSummaryReport = async () => {
+    const now = new Date();
+    const startOfCurrentYear = new Date(now.getFullYear(), 0, 1);
+
+    setDownloadingReport(true);
+    try {
+      await downloadFinanceReport({
+        reportType: "summary",
+        startDate: startOfCurrentYear.toISOString(),
+        endDate: now.toISOString(),
+      });
+      toast.success("Laporan keuangan berhasil diunduh.");
+    } catch {
+      toast.error("Gagal mengunduh laporan keuangan.");
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
+
   const hasUnpaidBill = bill !== null && bill.totalAmount > 0;
 
   // Full-year paid: no unpaid bill AND next bill is in the following year
@@ -139,13 +162,33 @@ export default function ResidentDashboard() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold font-poppins text-slate-900">
-          Halo, {user?.fullName || "Warga"}! 👋
-        </h1>
-        <p className="text-sm sm:text-base text-slate-500 mt-1">
-          Selamat datang di portal informasi warga.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold font-poppins text-slate-900">
+            Halo, {user?.fullName || "Warga"}! 👋
+          </h1>
+          <p className="text-sm sm:text-base text-slate-500 mt-1">
+            Selamat datang di portal informasi warga.
+          </p>
+        </div>
+
+        <Button
+          onClick={handleDownloadSummaryReport}
+          disabled={downloadingReport}
+          className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white"
+        >
+          {downloadingReport ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Mengunduh...
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4 mr-2" />
+              Download Laporan Keuangan
+            </>
+          )}
+        </Button>
       </div>
 
       {/* === PENDING PAYMENT REMINDER === */}

@@ -79,6 +79,11 @@ export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
 
   async generateReport(dto: DownloadReportDto, user: ActiveUserData): Promise<Buffer> {
+    if (user.roleType === 'RESIDENT') {
+      dto.reportType = ReportType.SUMMARY;
+      dto.groupId = undefined;
+    }
+
     if (user.roleType === 'ADMIN') {
       if (dto.groupId && dto.groupId !== user.communityGroupId) {
         throw new ForbiddenException('Anda hanya dapat mengunduh laporan untuk lingkungan Anda sendiri.');
@@ -106,6 +111,67 @@ export class ReportService {
     startDate: Date,
     endDate: Date,
   ): Promise<Buffer> {
+    if (user.roleType === 'RESIDENT') {
+      const ownGroup = await this.prisma.communityGroup.findUnique({
+        where: { id: user.communityGroupId },
+        include: {
+          wallet: true,
+          parent: {
+            include: {
+              wallet: true,
+            },
+          },
+        },
+      });
+
+      if (!ownGroup) throw new NotFoundException('Data lingkungan warga tidak ditemukan');
+
+      const relatedGroups = ownGroup.parent ? [ownGroup.parent, ownGroup] : [ownGroup];
+      const allGroupIds = relatedGroups.map((group) => group.id);
+
+      const transactions = await this.prisma.transaction.findMany({
+        where: {
+          wallet: { communityGroupId: { in: allGroupIds } },
+          createdAt: { gte: startDate, lte: endDate },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          wallet: { include: { communityGroup: { select: { name: true, type: true } } } },
+          createdBy: { select: { fullName: true } },
+        },
+      });
+
+      const groupMap = new Map<number, GroupTransactionsData>();
+      for (const group of relatedGroups) {
+        groupMap.set(group.id, {
+          groupName: group.name,
+          groupType: group.type,
+          balance: group.wallet ? Number(group.wallet.balance) : 0,
+          totalCredit: 0,
+          totalDebit: 0,
+          transactions: [],
+        });
+      }
+
+      for (const tx of transactions) {
+        const entry = groupMap.get(tx.wallet.communityGroupId);
+        if (!entry) continue;
+        const amount = Number(tx.amount);
+        if (tx.type === 'CREDIT') entry.totalCredit += amount;
+        else entry.totalDebit += amount;
+        entry.transactions.push({
+          date: tx.createdAt,
+          description: tx.description,
+          type: tx.type,
+          amount,
+          createdBy: tx.createdBy?.fullName || 'Sistem',
+        });
+      }
+
+      const summaryTitle = ownGroup.parent?.name ?? ownGroup.name;
+      return this.buildSummaryPdf(summaryTitle, startDate, endDate, groupMap);
+    }
+
     const rwGroup = await this.prisma.communityGroup.findUnique({
       where: { id: user.communityGroupId },
       include: {

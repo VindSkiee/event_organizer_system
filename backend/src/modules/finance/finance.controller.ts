@@ -200,7 +200,7 @@ export class FinanceController {
   // 8. UNDUH LAPORAN KEUANGAN (PDF)
   // ==========================================
 
-  @Roles(SystemRoleType.LEADER, SystemRoleType.ADMIN)
+  @Roles(SystemRoleType.LEADER, SystemRoleType.ADMIN, SystemRoleType.RESIDENT)
   @Get('report/download')
   @Header('Content-Type', 'application/pdf')
   async downloadReport(
