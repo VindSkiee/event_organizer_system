@@ -617,7 +617,7 @@ export default function ResidentDashboard() {
                       <div className="flex items-center justify-between px-1">
                         <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                           <div className="w-1.5 h-4 bg-sky-500 rounded-full" />
-                          Lingkungan {user?.communityGroupId ? "(Lokal)" : ""}
+                          Lingkungan {user?.communityGroupId ? "(RT)" : ""}
                         </h3>
                         <span className="text-xs font-semibold text-slate-500 bg-slate-200/50 px-2 py-1 rounded-md">
                           {localEvents.length} Acara
@@ -633,7 +633,7 @@ export default function ResidentDashboard() {
                         <div className="flex items-center justify-between px-1">
                           <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                             <div className="w-1.5 h-4 bg-fuchsia-500 rounded-full" />
-                            Gabungan (Pusat)
+                            Gabungan (RW)
                           </h3>
                           <span className="text-xs font-semibold text-slate-500 bg-slate-200/50 px-2 py-1 rounded-md">
                             {parentEvents.length} Acara
