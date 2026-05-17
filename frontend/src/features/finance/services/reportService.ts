@@ -48,3 +48,22 @@ export async function downloadFinanceReport(payload: DownloadReportPayload): Pro
   document.body.removeChild(link);
   window.URL.revokeObjectURL(url);
 }
+
+/**
+ * Ambil laporan keuangan untuk pratinjau PDF.
+ * Mengembalikan object URL agar bisa dibuka di tab baru.
+ */
+export async function previewFinanceReport(payload: DownloadReportPayload): Promise<string> {
+  const response = await api.get("/finance/report/download", {
+    params: {
+      reportType: payload.reportType,
+      groupId: payload.groupId,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+    },
+    responseType: "blob",
+  });
+
+  const blob = new Blob([response.data], { type: "application/pdf" });
+  return window.URL.createObjectURL(blob);
+}

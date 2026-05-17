@@ -22,11 +22,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/shared/ui/popover";
-import { CalendarIcon, Loader2, Download } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
+import { CalendarIcon, Loader2, Download, Eye } from "lucide-react";
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, addYears } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { toast } from "sonner";
-import { downloadFinanceReport } from "@/features/finance/services/reportService";
+import { downloadFinanceReport, previewFinanceReport } from "@/features/finance/services/reportService";
 import type { ChildWalletInfo } from "@/shared/types";
 import type { DateRange } from "react-day-picker";
 
@@ -82,6 +82,7 @@ export function DownloadReportDialog({
   const [timePreset, setTimePreset] = useState<TimePreset>("this_month");
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
   const [downloading, setDownloading] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   // ---- Derived dates ----
   const { startDate, endDate } = useMemo(() => {
@@ -94,7 +95,7 @@ export function DownloadReportDialog({
         return { startDate: startOfMonth(prev), endDate: endOfMonth(prev) };
       }
       case "this_year":
-        return { startDate: startOfYear(now), endDate: now };
+        return { startDate: startOfYear(now), endDate: addYears(startOfYear(now), 1) };
       case "custom":
         return {
           startDate: customRange?.from ?? startOfMonth(now),
@@ -112,33 +113,36 @@ export function DownloadReportDialog({
       setSelectedGroupId("");
       setTimePreset("this_month");
       setCustomRange(undefined);
+      setDownloading(false);
+      setPreviewing(false);
       onClose();
     }
   };
 
-  // ---- Handler download ----
-  const handleDownload = async () => {
-    // Tentukan groupId berdasarkan role & pilihan
+  const buildPayload = () => {
     let groupId: number | undefined;
 
     if (isLeader) {
       if (reportType === "detail" && selectedGroupId) {
         groupId = Number(selectedGroupId);
       }
-      // summary → tidak perlu groupId (backend generate seluruh RW+RT)
     } else {
-      // ADMIN → otomatis communityGroupId sendiri
       groupId = communityGroupId;
     }
 
+    return {
+      reportType: isLeader ? reportType : "detail",
+      groupId,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    };
+  };
+
+  // ---- Handler download ----
+  const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadFinanceReport({
-        reportType: isLeader ? reportType : "detail",
-        groupId,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-      });
+      await downloadFinanceReport(buildPayload());
       toast.success("Laporan berhasil diunduh!");
       handleOpenChange(false);
     } catch (err: unknown) {
@@ -151,12 +155,54 @@ export function DownloadReportDialog({
     }
   };
 
+  const handlePreview = async () => {
+    const previewWindow = window.open("", "_blank");
+
+    if (!previewWindow) {
+      toast.error("Pop-up diblokir. Izinkan pop-up untuk melihat pratinjau.");
+      return;
+    }
+
+    previewWindow.opener = null;
+    previewWindow.document.title = "Menyiapkan pratinjau...";
+    previewWindow.document.body.innerHTML =
+      "<p style=\"font-family: system-ui, sans-serif; padding: 16px;\">Menyiapkan pratinjau PDF...</p>";
+
+    setPreviewing(true);
+    try {
+      const url = await previewFinanceReport(buildPayload());
+
+      if (previewWindow.closed) {
+        window.URL.revokeObjectURL(url);
+        return;
+      }
+
+      previewWindow.location.href = url;
+      previewWindow.addEventListener("beforeunload", () => {
+        window.URL.revokeObjectURL(url);
+      });
+    } catch (err: unknown) {
+      if (!previewWindow.closed) {
+        previewWindow.close();
+      }
+
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message;
+      toast.error(message || "Gagal menampilkan pratinjau. Silakan coba lagi.");
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   // ---- Validasi tombol ----
   const canSubmit = useMemo(() => {
     if (timePreset === "custom" && !customRange?.from) return false;
     if (isLeader && reportType === "detail" && !selectedGroupId) return false;
     return true;
   }, [timePreset, customRange, isLeader, reportType, selectedGroupId]);
+
+  const isBusy = downloading || previewing;
 
   // ============================================================
   // RENDER
@@ -311,17 +357,35 @@ export function DownloadReportDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2 sm:gap-2">
           <Button
             variant="outline"
             onClick={() => handleOpenChange(false)}
-            disabled={downloading}
+            disabled={isBusy}
           >
             Batal
           </Button>
           <Button
+            variant="secondary"
+            onClick={handlePreview}
+            disabled={!canSubmit || isBusy}
+            className="gap-2"
+          >
+            {previewing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Menyiapkan...
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4" />
+                Pratinjau PDF
+              </>
+            )}
+          </Button>
+          <Button
             onClick={handleDownload}
-            disabled={!canSubmit || downloading}
+            disabled={!canSubmit || isBusy}
             className="gap-2"
           >
             {downloading ? (
