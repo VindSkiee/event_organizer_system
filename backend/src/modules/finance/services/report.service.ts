@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import type { ActiveUserData } from '@common/decorators/active-user.decorator';
 import { DownloadReportDto, ReportType } from '../dto/download-report.dto';
@@ -10,21 +14,21 @@ const PDFDocument = (PDFDocumentModule as any).default || PDFDocumentModule;
 // Tema & Konstanta Visual
 // ============================================================
 const theme = {
-  primary:     '#072C52',  // Biru Tua — header, aksen
-  primaryLight:'#0F4C8A',  // Biru Muda — aksen sekunder
-  secondary:   '#475569',  // Slate-600
-  text:        '#1E293B',  // Slate-800
-  textMuted:   '#64748B',  // Slate-500
-  border:      '#E2E8F0',  // Slate-200
-  bgStripe:    '#F8FAFC',  // Slate-50  — zebra
-  bgBox:       '#F1F5F9',  // Slate-100 — summary card
-  bgBoxBorder: '#CBD5E1',  // Slate-300
-  credit:      '#059669',  // Emerald-600 — pemasukan
-  creditBg:    '#ECFDF5',  // Emerald-50
-  debit:       '#DC2626',  // Red-600   — pengeluaran
-  debitBg:     '#FEF2F2',  // Red-50
-  white:       '#FFFFFF',
-  accent:      '#F59E0B',  // Amber-500 — separator strip
+  primary: '#072C52', // Biru Tua — header, aksen
+  primaryLight: '#0F4C8A', // Biru Muda — aksen sekunder
+  secondary: '#475569', // Slate-600
+  text: '#1E293B', // Slate-800
+  textMuted: '#64748B', // Slate-500
+  border: '#E2E8F0', // Slate-200
+  bgStripe: '#F8FAFC', // Slate-50  — zebra
+  bgBox: '#F1F5F9', // Slate-100 — summary card
+  bgBoxBorder: '#CBD5E1', // Slate-300
+  credit: '#059669', // Emerald-600 — pemasukan
+  creditBg: '#ECFDF5', // Emerald-50
+  debit: '#DC2626', // Red-600   — pengeluaran
+  debitBg: '#FEF2F2', // Red-50
+  white: '#FFFFFF',
+  accent: '#F59E0B', // Amber-500 — separator strip
 };
 
 const PAGE_MARGIN = 40;
@@ -35,17 +39,27 @@ const FOOTER_HEIGHT = 55;
 // ============================================================
 function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', {
-    style: 'currency', currency: 'IDR',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(amount);
 }
 
 function formatTanggal(date: Date): string {
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  return date.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function formatTanggalSingkat(date: Date): string {
-  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  return date.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 // Konversi hex → [r, g, b] — untuk fillColor RGB API PDFKit
@@ -78,7 +92,10 @@ interface GroupTransactionsData {
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generateReport(dto: DownloadReportDto, user: ActiveUserData): Promise<Buffer> {
+  async generateReport(
+    dto: DownloadReportDto,
+    user: ActiveUserData,
+  ): Promise<Buffer> {
     if (user.roleType === 'RESIDENT') {
       dto.reportType = ReportType.SUMMARY;
       dto.groupId = undefined;
@@ -86,14 +103,16 @@ export class ReportService {
 
     if (user.roleType === 'ADMIN') {
       if (dto.groupId && dto.groupId !== user.communityGroupId) {
-        throw new ForbiddenException('Anda hanya dapat mengunduh laporan untuk lingkungan Anda sendiri.');
+        throw new ForbiddenException(
+          'Anda hanya dapat mengunduh laporan untuk lingkungan Anda sendiri.',
+        );
       }
       dto.reportType = ReportType.DETAIL;
       dto.groupId = user.communityGroupId;
     }
 
     const start = new Date(dto.startDate);
-    const end   = new Date(dto.endDate);
+    const end = new Date(dto.endDate);
 
     if (dto.reportType === ReportType.SUMMARY) {
       return this.generateSummaryReport(user, start, end);
@@ -124,9 +143,12 @@ export class ReportService {
         },
       });
 
-      if (!ownGroup) throw new NotFoundException('Data lingkungan warga tidak ditemukan');
+      if (!ownGroup)
+        throw new NotFoundException('Data lingkungan warga tidak ditemukan');
 
-      const relatedGroups = ownGroup.parent ? [ownGroup.parent, ownGroup] : [ownGroup];
+      const relatedGroups = ownGroup.parent
+        ? [ownGroup.parent, ownGroup]
+        : [ownGroup];
       const allGroupIds = relatedGroups.map((group) => group.id);
 
       const transactions = await this.prisma.transaction.findMany({
@@ -136,7 +158,9 @@ export class ReportService {
         },
         orderBy: { createdAt: 'desc' },
         include: {
-          wallet: { include: { communityGroup: { select: { name: true, type: true } } } },
+          wallet: {
+            include: { communityGroup: { select: { name: true, type: true } } },
+          },
           createdBy: { select: { fullName: true } },
         },
       });
@@ -191,7 +215,9 @@ export class ReportService {
       },
       orderBy: { createdAt: 'desc' },
       include: {
-        wallet: { include: { communityGroup: { select: { name: true, type: true } } } },
+        wallet: {
+          include: { communityGroup: { select: { name: true, type: true } } },
+        },
         createdBy: { select: { fullName: true } },
       },
     });
@@ -199,16 +225,22 @@ export class ReportService {
     const groupMap = new Map<number, GroupTransactionsData>();
 
     groupMap.set(rwGroup.id, {
-      groupName: rwGroup.name, groupType: rwGroup.type,
+      groupName: rwGroup.name,
+      groupType: rwGroup.type,
       balance: rwGroup.wallet ? Number(rwGroup.wallet.balance) : 0,
-      totalCredit: 0, totalDebit: 0, transactions: [],
+      totalCredit: 0,
+      totalDebit: 0,
+      transactions: [],
     });
 
     for (const child of rwGroup.children) {
       groupMap.set(child.id, {
-        groupName: child.name, groupType: child.type,
+        groupName: child.name,
+        groupType: child.type,
         balance: child.wallet ? Number(child.wallet.balance) : 0,
-        totalCredit: 0, totalDebit: 0, transactions: [],
+        totalCredit: 0,
+        totalDebit: 0,
+        transactions: [],
       });
     }
 
@@ -219,8 +251,11 @@ export class ReportService {
       if (tx.type === 'CREDIT') entry.totalCredit += amount;
       else entry.totalDebit += amount;
       entry.transactions.push({
-        date: tx.createdAt, description: tx.description,
-        type: tx.type, amount, createdBy: tx.createdBy?.fullName || 'Sistem',
+        date: tx.createdAt,
+        description: tx.description,
+        type: tx.type,
+        amount,
+        createdBy: tx.createdBy?.fullName || 'Sistem',
       });
     }
 
@@ -244,10 +279,12 @@ export class ReportService {
     if (!group) throw new NotFoundException('Data lingkungan tidak ditemukan');
 
     if (user.roleType === 'LEADER') {
-      const isOwn   = group.id === user.communityGroupId;
+      const isOwn = group.id === user.communityGroupId;
       const isChild = group.parentId === user.communityGroupId;
       if (!isOwn && !isChild)
-        throw new ForbiddenException('Anda tidak memiliki akses ke lingkungan ini.');
+        throw new ForbiddenException(
+          'Anda tidak memiliki akses ke lingkungan ini.',
+        );
     }
 
     const transactions = await this.prisma.transaction.findMany({
@@ -258,27 +295,34 @@ export class ReportService {
       orderBy: { createdAt: 'asc' },
       include: {
         createdBy: { select: { fullName: true } },
-        event:     { select: { title: true } },
+        event: { select: { title: true } },
       },
     });
 
     const mapped = transactions.map((tx) => ({
-      date:        tx.createdAt,
+      date: tx.createdAt,
       description: tx.description,
-      type:        tx.type,
-      amount:      Number(tx.amount),
-      createdBy:   tx.createdBy?.fullName || 'Sistem',
-      event:       tx.event?.title || null,
+      type: tx.type,
+      amount: Number(tx.amount),
+      createdBy: tx.createdBy?.fullName || 'Sistem',
+      event: tx.event?.title || null,
     }));
 
-    const totalCredit = mapped.filter((t) => t.type === 'CREDIT').reduce((s, t) => s + t.amount, 0);
-    const totalDebit  = mapped.filter((t) => t.type === 'DEBIT').reduce((s, t) => s + t.amount, 0);
+    const totalCredit = mapped
+      .filter((t) => t.type === 'CREDIT')
+      .reduce((s, t) => s + t.amount, 0);
+    const totalDebit = mapped
+      .filter((t) => t.type === 'DEBIT')
+      .reduce((s, t) => s + t.amount, 0);
 
     return this.buildDetailPdf(
-      group.name, group.type,
+      group.name,
+      group.type,
       group.wallet ? Number(group.wallet.balance) : 0,
-      startDate, endDate,
-      totalCredit, totalDebit,
+      startDate,
+      endDate,
+      totalCredit,
+      totalDebit,
       mapped,
     );
   }
@@ -293,95 +337,218 @@ export class ReportService {
     groupMap: Map<number, GroupTransactionsData>,
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN, bufferPages: true });
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: {
+          top: PAGE_MARGIN,
+          bottom: 20,
+          left: PAGE_MARGIN,
+          right: PAGE_MARGIN,
+        },
+        bufferPages: true,
+      });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
       const pageWidth = doc.page.width - PAGE_MARGIN * 2;
-      const startX    = PAGE_MARGIN;
+      const startX = PAGE_MARGIN;
 
-      this.drawDocumentHeader(doc, 'Ringkasan Eksekutif Keuangan', rwName, startDate, endDate);
+      this.drawDocumentHeader(
+        doc,
+        'Ringkasan Eksekutif Keuangan',
+        rwName,
+        startDate,
+        endDate,
+      );
 
       // ---- Hitung grand total ----
-      let grandCredit = 0, grandDebit = 0, grandBalance = 0;
+      let grandCredit = 0,
+        grandDebit = 0,
+        grandBalance = 0;
       for (const [, d] of groupMap) {
-        grandCredit  += d.totalCredit;
-        grandDebit   += d.totalDebit;
+        grandCredit += d.totalCredit;
+        grandDebit += d.totalDebit;
         grandBalance += d.balance;
       }
 
       // ---- KPI Cards (3 box) ----
       this.drawKpiCards(doc, startX, pageWidth, [
-        { label: 'Total Pemasukan',  value: grandCredit,  color: theme.credit,    bg: theme.creditBg },
-        { label: 'Total Pengeluaran',value: grandDebit,   color: theme.debit,     bg: theme.debitBg  },
-        { label: 'Total Saldo Aktif',value: grandBalance, color: theme.primary,   bg: theme.bgBox    },
+        {
+          label: 'Total Pemasukan',
+          value: grandCredit,
+          color: theme.credit,
+          bg: theme.creditBg,
+        },
+        {
+          label: 'Total Pengeluaran',
+          value: grandDebit,
+          color: theme.debit,
+          bg: theme.debitBg,
+        },
+        {
+          label: 'Total Saldo Aktif',
+          value: grandBalance,
+          color: theme.primary,
+          bg: theme.bgBox,
+        },
       ]);
 
       doc.moveDown(1.5);
 
       // ---- Section title ----
+      this.ensureSpace(doc, 120);
       this.drawSectionTitle(doc, startX, 'Ringkasan per Lingkungan');
 
       // ---- Summary Table ----
-      const colW = [pageWidth * 0.35, pageWidth * 0.20, pageWidth * 0.20, pageWidth * 0.25];
+      const colW = [
+        pageWidth * 0.35,
+        pageWidth * 0.2,
+        pageWidth * 0.2,
+        pageWidth * 0.25,
+      ];
+      const headerH = 22;
+      const rowH = 22;
+      const totalH = 24;
+      const bottomLimit = doc.page.height - FOOTER_HEIGHT - 10;
+
+      const drawSummaryHeader = (yPos: number) => {
+        doc
+          .fillColor(theme.primary)
+          .rect(startX, yPos, pageWidth, headerH)
+          .fill();
+        const hY = yPos + 7;
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(theme.white);
+        doc.text('Lingkungan', startX + 6, hY, { width: colW[0] - 6 });
+        doc.text('Pemasukan', startX + colW[0], hY, {
+          width: colW[1] - 6,
+          align: 'right',
+        });
+        doc.text('Pengeluaran', startX + colW[0] + colW[1], hY, {
+          width: colW[2] - 6,
+          align: 'right',
+        });
+        doc.text('Saldo Akhir', startX + colW[0] + colW[1] + colW[2], hY, {
+          width: colW[3] - 6,
+          align: 'right',
+        });
+      };
+
       let y = doc.y;
+      drawSummaryHeader(y);
+      y += headerH;
 
-      // Header baris
-      doc.fillColor(theme.primary).rect(startX, y, pageWidth, 22).fill();
-      const hY = y + 7;
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(theme.white);
-      doc.text('Lingkungan',   startX + 6,                            hY, { width: colW[0] - 6 });
-      doc.text('Pemasukan',    startX + colW[0],                      hY, { width: colW[1] - 6, align: 'right' });
-      doc.text('Pengeluaran',  startX + colW[0] + colW[1],            hY, { width: colW[2] - 6, align: 'right' });
-      doc.text('Saldo Akhir',  startX + colW[0] + colW[1] + colW[2], hY, { width: colW[3] - 6, align: 'right' });
-      y += 22;
+      const groupValues = Array.from(groupMap.values());
+      for (let idx = 0; idx < groupValues.length; idx++) {
+        const data = groupValues[idx];
+        const needsRoomForTotal = idx === groupValues.length - 1;
+        const willOverflow = needsRoomForTotal
+          ? y + rowH + totalH > bottomLimit
+          : y + rowH > bottomLimit;
 
-      let idx = 0;
-      for (const [, data] of groupMap) {
-        if (y > doc.page.height - FOOTER_HEIGHT - 30) { doc.addPage(); y = PAGE_MARGIN; }
+        if (willOverflow) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+          drawSummaryHeader(y);
+          y += headerH;
+        }
 
-        if (idx % 2 === 0) doc.fillColor(theme.bgStripe).rect(startX, y, pageWidth, 22).fill();
+        if (idx % 2 === 0)
+          doc.fillColor(theme.bgStripe).rect(startX, y, pageWidth, rowH).fill();
 
         const rY = y + 7;
         doc.fontSize(9).font('Helvetica').fillColor(theme.text);
-        doc.text(data.groupName,              startX + 6,                            rY, { width: colW[0] - 6 });
-        doc.fillColor(theme.credit).text(formatRupiah(data.totalCredit),  startX + colW[0],                      rY, { width: colW[1] - 6, align: 'right' });
-        doc.fillColor(theme.debit ).text(formatRupiah(data.totalDebit),   startX + colW[0] + colW[1],            rY, { width: colW[2] - 6, align: 'right' });
-        doc.fillColor(theme.text  ).font('Helvetica-Bold').text(formatRupiah(data.balance), startX + colW[0] + colW[1] + colW[2], rY, { width: colW[3] - 6, align: 'right' });
+        doc.text(data.groupName, startX + 6, rY, { width: colW[0] - 6 });
+        doc
+          .fillColor(theme.credit)
+          .text(formatRupiah(data.totalCredit), startX + colW[0], rY, {
+            width: colW[1] - 6,
+            align: 'right',
+          });
+        doc
+          .fillColor(theme.debit)
+          .text(formatRupiah(data.totalDebit), startX + colW[0] + colW[1], rY, {
+            width: colW[2] - 6,
+            align: 'right',
+          });
+        doc
+          .fillColor(theme.text)
+          .font('Helvetica-Bold')
+          .text(
+            formatRupiah(data.balance),
+            startX + colW[0] + colW[1] + colW[2],
+            rY,
+            { width: colW[3] - 6, align: 'right' },
+          );
 
-        y += 22; idx++;
+        y += rowH;
       }
 
       // Baris total
-      doc.fillColor(theme.primaryLight).rect(startX, y, pageWidth, 24).fill();
+      if (y + totalH > bottomLimit) {
+        doc.addPage();
+        y = PAGE_MARGIN;
+        drawSummaryHeader(y);
+        y += headerH;
+      }
+
+      doc
+        .fillColor(theme.primaryLight)
+        .rect(startX, y, pageWidth, totalH)
+        .fill();
       const tY = y + 7;
       doc.fontSize(9).font('Helvetica-Bold').fillColor(theme.white);
-      doc.text('TOTAL KESELURUHAN',    startX + 6,                            tY, { width: colW[0] - 6 });
-      doc.text(formatRupiah(grandCredit),  startX + colW[0],                      tY, { width: colW[1] - 6, align: 'right' });
-      doc.text(formatRupiah(grandDebit),   startX + colW[0] + colW[1],            tY, { width: colW[2] - 6, align: 'right' });
-      doc.text(formatRupiah(grandBalance), startX + colW[0] + colW[1] + colW[2], tY, { width: colW[3] - 6, align: 'right' });
-      y += 24;
+      doc.text('TOTAL KESELURUHAN', startX + 6, tY, { width: colW[0] - 6 });
+      doc.text(formatRupiah(grandCredit), startX + colW[0], tY, {
+        width: colW[1] - 6,
+        align: 'right',
+      });
+      doc.text(formatRupiah(grandDebit), startX + colW[0] + colW[1], tY, {
+        width: colW[2] - 6,
+        align: 'right',
+      });
+      doc.text(
+        formatRupiah(grandBalance),
+        startX + colW[0] + colW[1] + colW[2],
+        tY,
+        { width: colW[3] - 6, align: 'right' },
+      );
+      y += totalH;
 
       doc.y = y;
       doc.moveDown(2);
 
       // ---- Detail transaksi per grup ----
-      let hasAnyTransaction = false;
-      for (const [, data] of groupMap) {
-        if (data.transactions.length === 0) continue;
-        hasAnyTransaction = true;
+      const groupsWithTransactions = groupValues.filter(
+        (data) => data.transactions.length > 0,
+      );
+      for (let idx = 0; idx < groupsWithTransactions.length; idx++) {
+        const data = groupsWithTransactions[idx];
+        const isLastGroup = idx === groupsWithTransactions.length - 1;
 
-        if (doc.y > doc.page.height - FOOTER_HEIGHT - 150) doc.addPage();
+        this.ensureSpace(doc, 180);
 
-        this.drawSectionTitle(doc, startX, `Rincian Transaksi: ${data.groupName}`);
+        this.drawSectionTitle(
+          doc,
+          startX,
+          `Rincian Transaksi: ${data.groupName}`,
+        );
         this.drawTransactionTable(doc, data.transactions, pageWidth, startX);
-        doc.moveDown(2);
+
+        if (!isLastGroup) {
+          this.ensureSpace(doc, 40);
+          doc.moveDown(2);
+        }
       }
 
-      if (!hasAnyTransaction) {
-        this.drawEmptyState(doc, startX, pageWidth, 'Tidak ada transaksi dalam periode yang dipilih.');
+      if (groupsWithTransactions.length === 0) {
+        this.drawEmptyState(
+          doc,
+          startX,
+          pageWidth,
+          'Tidak ada transaksi dalam periode yang dipilih.',
+        );
       }
 
       this.addFooter(doc);
@@ -401,51 +568,98 @@ export class ReportService {
     totalCredit: number,
     totalDebit: number,
     transactions: {
-      date: Date; description: string; type: string;
-      amount: number; createdBy: string; event: string | null;
+      date: Date;
+      description: string;
+      type: string;
+      amount: number;
+      createdBy: string;
+      event: string | null;
     }[],
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN, bufferPages: true });
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: {
+          top: PAGE_MARGIN,
+          bottom: 20,
+          left: PAGE_MARGIN,
+          right: PAGE_MARGIN,
+        },
+        bufferPages: true,
+      });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
       const pageWidth = doc.page.width - PAGE_MARGIN * 2;
-      const startX    = PAGE_MARGIN;
-      const nett      = totalCredit - totalDebit;
+      const startX = PAGE_MARGIN;
+      const nett = totalCredit - totalDebit;
 
-      this.drawDocumentHeader(doc, 'Laporan Rincian Keuangan', `${groupName} (${groupType})`, startDate, endDate);
+      this.drawDocumentHeader(
+        doc,
+        'Laporan Rincian Keuangan',
+        `${groupName} (${groupType})`,
+        startDate,
+        endDate,
+      );
 
       // ---- KPI Cards (4 box) ----
       this.drawKpiCards(doc, startX, pageWidth, [
-        { label: 'Total Pemasukan',   value: totalCredit, color: theme.credit,  bg: theme.creditBg },
-        { label: 'Total Pengeluaran', value: totalDebit,  color: theme.debit,   bg: theme.debitBg  },
-        { label: 'Selisih Bersih',    value: nett,        color: nett >= 0 ? theme.credit : theme.debit, bg: nett >= 0 ? theme.creditBg : theme.debitBg },
-        { label: 'Saldo Akhir',       value: balance,     color: theme.primary, bg: theme.bgBox    },
+        {
+          label: 'Total Pemasukan',
+          value: totalCredit,
+          color: theme.credit,
+          bg: theme.creditBg,
+        },
+        {
+          label: 'Total Pengeluaran',
+          value: totalDebit,
+          color: theme.debit,
+          bg: theme.debitBg,
+        },
+        {
+          label: 'Selisih Bersih',
+          value: nett,
+          color: nett >= 0 ? theme.credit : theme.debit,
+          bg: nett >= 0 ? theme.creditBg : theme.debitBg,
+        },
+        {
+          label: 'Saldo Akhir',
+          value: balance,
+          color: theme.primary,
+          bg: theme.bgBox,
+        },
       ]);
 
       doc.moveDown(1.5);
 
       // ---- Tabel transaksi ----
+      this.ensureSpace(doc, 120);
       this.drawSectionTitle(doc, startX, 'Rincian Transaksi');
 
       if (transactions.length > 0) {
         this.drawTransactionTable(
           doc,
           transactions.map((t) => ({
-            date:        t.date,
-            description: t.event ? `${t.description}\n[Kegiatan: ${t.event}]` : t.description,
-            type:        t.type,
-            amount:      t.amount,
-            createdBy:   t.createdBy,
+            date: t.date,
+            description: t.event
+              ? `${t.description}\n[Kegiatan: ${t.event}]`
+              : t.description,
+            type: t.type,
+            amount: t.amount,
+            createdBy: t.createdBy,
           })),
           pageWidth,
           startX,
         );
       } else {
-        this.drawEmptyState(doc, startX, pageWidth, 'Tidak ada transaksi pada periode yang dipilih.');
+        this.drawEmptyState(
+          doc,
+          startX,
+          pageWidth,
+          'Tidak ada transaksi pada periode yang dipilih.',
+        );
       }
 
       this.addFooter(doc);
@@ -476,28 +690,43 @@ export class ReportService {
     doc.y = PAGE_MARGIN + 10;
 
     // Judul
-    doc.fillColor(theme.primary).fontSize(20).font('Helvetica-Bold').text(title, { align: 'center' });
+    doc
+      .fillColor(theme.primary)
+      .fontSize(20)
+      .font('Helvetica-Bold')
+      .text(title, { align: 'center' });
 
     // Subjudul
-    doc.fillColor(theme.text).fontSize(12).font('Helvetica').text(subtitle, { align: 'center' });
+    doc
+      .fillColor(theme.text)
+      .fontSize(12)
+      .font('Helvetica')
+      .text(subtitle, { align: 'center' });
     doc.moveDown(0.25);
 
     // Periode — dengan background pill
     const periodeText = `Periode: ${formatTanggal(startDate)} — ${formatTanggal(endDate)}`;
-    const pillW  = 310;
-    const pillH  = 20;
-    const pillX  = (doc.page.width - pillW) / 2;
-    const pillY  = doc.y;
+    const pillW = 310;
+    const pillH = 20;
+    const pillX = (doc.page.width - pillW) / 2;
+    const pillY = doc.y;
 
     doc.roundedRect(pillX, pillY, pillW, pillH, 10).fill(theme.bgBox);
-    doc.fillColor(theme.textMuted).fontSize(9.5).font('Helvetica')
-       .text(periodeText, pillX, pillY + 5, { width: pillW, align: 'center' });
+    doc
+      .fillColor(theme.textMuted)
+      .fontSize(9.5)
+      .font('Helvetica')
+      .text(periodeText, pillX, pillY + 5, { width: pillW, align: 'center' });
 
     doc.y = pillY + pillH + 14;
 
     // Garis pemisah
-    doc.strokeColor(theme.border).lineWidth(1)
-       .moveTo(PAGE_MARGIN, doc.y).lineTo(doc.page.width - PAGE_MARGIN, doc.y).stroke();
+    doc
+      .strokeColor(theme.border)
+      .lineWidth(1)
+      .moveTo(PAGE_MARGIN, doc.y)
+      .lineTo(doc.page.width - PAGE_MARGIN, doc.y)
+      .stroke();
 
     doc.moveDown(1.2);
   }
@@ -511,11 +740,11 @@ export class ReportService {
     pageWidth: number,
     cards: { label: string; value: number; color: string; bg: string }[],
   ) {
-    const GAP   = 8;
+    const GAP = 8;
     const count = cards.length;
     const cardW = (pageWidth - GAP * (count - 1)) / count;
     const cardH = 64;
-    const y     = doc.y;
+    const y = doc.y;
 
     for (let i = 0; i < count; i++) {
       const { label, value, color, bg } = cards[i];
@@ -525,15 +754,24 @@ export class ReportService {
       doc.rect(x, y, cardW, cardH).fillAndStroke(bg, theme.bgBoxBorder);
 
       // Aksen warna kiri (bar vertikal 4px)
-      doc.fillColor(color).rect(x, y + 0, 4, cardH - 0).fill();
+      doc
+        .fillColor(color)
+        .rect(x, y + 0, 4, cardH - 0)
+        .fill();
 
       // Label
-      doc.fillColor(theme.textMuted).fontSize(8).font('Helvetica')
-         .text(label, x + 12, y + 13, { width: cardW - 16 });
+      doc
+        .fillColor(theme.textMuted)
+        .fontSize(8)
+        .font('Helvetica')
+        .text(label, x + 12, y + 13, { width: cardW - 16 });
 
       // Nilai
-      doc.fillColor(color).fontSize(11.5).font('Helvetica-Bold')
-         .text(formatRupiah(value), x + 12, y + 30, { width: cardW - 16 });
+      doc
+        .fillColor(color)
+        .fontSize(11.5)
+        .font('Helvetica-Bold')
+        .text(formatRupiah(value), x + 12, y + 30, { width: cardW - 16 });
     }
 
     doc.y = y + cardH;
@@ -542,14 +780,21 @@ export class ReportService {
   /**
    * Section Title — garis aksen + teks bold
    */
-  private drawSectionTitle(doc: PDFKit.PDFDocument, startX: number, text: string) {
+  private drawSectionTitle(
+    doc: PDFKit.PDFDocument,
+    startX: number,
+    text: string,
+  ) {
     const y = doc.y;
 
     // Blok aksen kiri
     doc.fillColor(theme.primary).rect(startX, y, 4, 16).fill();
 
-    doc.fillColor(theme.primary).fontSize(11).font('Helvetica-Bold')
-       .text(text, startX + 10, y + 2, { align: 'left' });
+    doc
+      .fillColor(theme.primary)
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .text(text, startX + 10, y + 2, { align: 'left' });
 
     doc.moveDown(0.6);
   }
@@ -557,13 +802,22 @@ export class ReportService {
   /**
    * Empty State — kotak abu-abu dengan pesan
    */
-  private drawEmptyState(doc: PDFKit.PDFDocument, startX: number, pageWidth: number, message: string) {
+  private drawEmptyState(
+    doc: PDFKit.PDFDocument,
+    startX: number,
+    pageWidth: number,
+    message: string,
+  ) {
     const y = doc.y;
-    doc.roundedRect(startX, y, pageWidth, 44, 6)
-       .fillAndStroke(theme.bgStripe, theme.border);
+    doc
+      .roundedRect(startX, y, pageWidth, 44, 6)
+      .fillAndStroke(theme.bgStripe, theme.border);
 
-    doc.fillColor(theme.textMuted).fontSize(10).font('Helvetica-Oblique')
-       .text(message, startX, y + 15, { width: pageWidth, align: 'center' });
+    doc
+      .fillColor(theme.textMuted)
+      .fontSize(10)
+      .font('Helvetica-Oblique')
+      .text(message, startX, y + 15, { width: pageWidth, align: 'center' });
 
     doc.y = y + 60;
   }
@@ -573,7 +827,13 @@ export class ReportService {
    */
   private drawTransactionTable(
     doc: PDFKit.PDFDocument,
-    transactions: { date: Date; description: string; type: string; amount: number; createdBy: string }[],
+    transactions: {
+      date: Date;
+      description: string;
+      type: string;
+      amount: number;
+      createdBy: string;
+    }[],
     pageWidth: number,
     startX: number,
   ) {
@@ -585,37 +845,59 @@ export class ReportService {
       pageWidth * 0.18, // Oleh
     ];
 
-    const HEADERS = ['Tanggal', 'Keterangan', 'Tipe', 'Nominal', 'Dicatat Oleh'];
+    const HEADERS = [
+      'Tanggal',
+      'Keterangan',
+      'Tipe',
+      'Nominal',
+      'Dicatat Oleh',
+    ];
     const PADDING = { v: 7, h: 6 };
+    const headerH = 22;
+    const minRowH = 24;
+    const totalRowH = 26;
+    const bottomLimit = doc.page.height - FOOTER_HEIGHT - 10;
 
     const drawHeader = (yPos: number) => {
       doc.fillColor(theme.primary).rect(startX, yPos, pageWidth, 22).fill();
       let cx = startX + PADDING.h;
       doc.fontSize(9).font('Helvetica-Bold').fillColor(theme.white);
       for (let i = 0; i < HEADERS.length; i++) {
-        const align = (i === 3) ? 'right' : (i === 2 ? 'center' : 'left');
-        doc.text(HEADERS[i], cx, yPos + PADDING.v, { width: cols[i] - PADDING.h, align });
+        const align = i === 3 ? 'right' : i === 2 ? 'center' : 'left';
+        doc.text(HEADERS[i], cx, yPos + PADDING.v, {
+          width: cols[i] - PADDING.h,
+          align,
+        });
         cx += cols[i];
       }
     };
 
+    this.ensureSpace(doc, headerH + minRowH + totalRowH + 8);
+
     let y = doc.y;
     drawHeader(y);
-    y += 22;
+    y += headerH;
 
     for (let idx = 0; idx < transactions.length; idx++) {
-      const tx       = transactions[idx];
+      const tx = transactions[idx];
       doc.fontSize(9);
-      const descH    = doc.heightOfString(tx.description, { width: cols[1] - PADDING.h * 2 });
-      const rowH     = Math.max(descH + PADDING.v * 2, 24);
+      const descH = doc.heightOfString(tx.description, {
+        width: cols[1] - PADDING.h * 2,
+      });
+      const rowH = Math.max(descH + PADDING.v * 2, 24);
       const isCredit = tx.type === 'CREDIT';
 
       // Page break
-      if (y + rowH > doc.page.height - FOOTER_HEIGHT - 10) {
+      const isLastRow = idx === transactions.length - 1;
+      const willOverflow = isLastRow
+        ? y + rowH + totalRowH > bottomLimit
+        : y + rowH > bottomLimit;
+
+      if (willOverflow) {
         doc.addPage();
         y = PAGE_MARGIN;
         drawHeader(y);
-        y += 22;
+        y += headerH;
       }
 
       // Zebra stripe
@@ -628,59 +910,88 @@ export class ReportService {
       let lx = startX;
       for (let i = 0; i < cols.length - 1; i++) {
         lx += cols[i];
-        doc.moveTo(lx, y + 4).lineTo(lx, y + rowH - 4).stroke();
+        doc
+          .moveTo(lx, y + 4)
+          .lineTo(lx, y + rowH - 4)
+          .stroke();
       }
 
       const textY = y + PADDING.v;
       let cx = startX + PADDING.h;
 
       // Tanggal
-      doc.fillColor(theme.textMuted).font('Helvetica').fontSize(8.5)
-         .text(formatTanggalSingkat(tx.date), cx, textY, { width: cols[0] - PADDING.h });
+      doc
+        .fillColor(theme.textMuted)
+        .font('Helvetica')
+        .fontSize(8.5)
+        .text(formatTanggalSingkat(tx.date), cx, textY, {
+          width: cols[0] - PADDING.h,
+        });
       cx += cols[0];
 
       // Keterangan
-      doc.fillColor(theme.text).fontSize(9)
-         .text(tx.description, cx, textY, { width: cols[1] - PADDING.h * 2 });
+      doc
+        .fillColor(theme.text)
+        .fontSize(9)
+        .text(tx.description, cx, textY, { width: cols[1] - PADDING.h * 2 });
       cx += cols[1];
 
       // Tipe — label pill berwarna
       const pillColor = isCredit ? theme.credit : theme.debit;
-      const pillBg    = isCredit ? theme.creditBg : theme.debitBg;
-      const label     = isCredit ? 'Masuk' : 'Keluar';
-      const pillW     = cols[2] - PADDING.h * 2;
-      const pillX     = cx + PADDING.h;
-      const pillTY    = textY - 1;
+      const pillBg = isCredit ? theme.creditBg : theme.debitBg;
+      const label = isCredit ? 'Masuk' : 'Keluar';
+      const pillW = cols[2] - PADDING.h * 2;
+      const pillX = cx + PADDING.h;
+      const pillTY = textY - 1;
 
       doc.roundedRect(pillX, pillTY, pillW, 14, 4).fill(pillBg);
-      doc.fillColor(pillColor).font('Helvetica-Bold').fontSize(8)
-         .text(label, pillX, pillTY + 3, { width: pillW, align: 'center' });
+      doc
+        .fillColor(pillColor)
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .text(label, pillX, pillTY + 3, { width: pillW, align: 'center' });
       cx += cols[2];
 
       // Nominal — warna sesuai tipe
-      doc.fillColor(isCredit ? theme.credit : theme.debit).font('Helvetica-Bold').fontSize(9)
-         .text(formatRupiah(tx.amount), cx, textY, { width: cols[3] - PADDING.h, align: 'right' });
+      doc
+        .fillColor(isCredit ? theme.credit : theme.debit)
+        .font('Helvetica-Bold')
+        .fontSize(9)
+        .text(formatRupiah(tx.amount), cx, textY, {
+          width: cols[3] - PADDING.h,
+          align: 'right',
+        });
       cx += cols[3];
 
       // Dicatat Oleh
-      doc.fillColor(theme.textMuted).font('Helvetica').fontSize(8.5)
-         .text(tx.createdBy, cx, textY, { width: cols[4] - PADDING.h });
+      doc
+        .fillColor(theme.textMuted)
+        .font('Helvetica')
+        .fontSize(8.5)
+        .text(tx.createdBy, cx, textY, { width: cols[4] - PADDING.h });
 
       y += rowH;
     }
 
     // ---- Baris Total ----
-    const totalCredit = transactions.filter((t) => t.type === 'CREDIT').reduce((s, t) => s + t.amount, 0);
-    const totalDebit  = transactions.filter((t) => t.type === 'DEBIT').reduce((s, t) => s + t.amount, 0);
-    const totalRowH   = 26;
-
+    const totalCredit = transactions
+      .filter((t) => t.type === 'CREDIT')
+      .reduce((s, t) => s + t.amount, 0);
+    const totalDebit = transactions
+      .filter((t) => t.type === 'DEBIT')
+      .reduce((s, t) => s + t.amount, 0);
     // Page break check untuk baris total
-    if (y + totalRowH > doc.page.height - FOOTER_HEIGHT - 10) {
+    if (y + totalRowH > bottomLimit) {
       doc.addPage();
       y = PAGE_MARGIN;
+      drawHeader(y);
+      y += headerH;
     }
 
-    doc.fillColor(theme.primaryLight).rect(startX, y, pageWidth, totalRowH).fill();
+    doc
+      .fillColor(theme.primaryLight)
+      .rect(startX, y, pageWidth, totalRowH)
+      .fill();
 
     const tY = y + 8;
     doc.fontSize(9).font('Helvetica-Bold').fillColor(theme.white);
@@ -698,20 +1009,26 @@ export class ReportService {
     const nominalW = cols[3] - PADDING.h;
     if (totalCredit > 0 && totalDebit > 0) {
       // Tampilkan kredit & debit dalam 2 baris ringkas jika keduanya ada
-      doc.fontSize(7.5).text(
-        `+${formatRupiah(totalCredit)}`,
-        nominalX, tY - 3,
-        { width: nominalW, align: 'right' },
-      );
-      doc.text(
-        `-${formatRupiah(totalDebit)}`,
-        nominalX, tY + 7,
-        { width: nominalW, align: 'right' },
-      );
+      doc
+        .fontSize(7.5)
+        .text(`+${formatRupiah(totalCredit)}`, nominalX, tY - 3, {
+          width: nominalW,
+          align: 'right',
+        });
+      doc.text(`-${formatRupiah(totalDebit)}`, nominalX, tY + 7, {
+        width: nominalW,
+        align: 'right',
+      });
     } else if (totalCredit > 0) {
-      doc.fontSize(9).text(formatRupiah(totalCredit), nominalX, tY, { width: nominalW, align: 'right' });
+      doc.fontSize(9).text(formatRupiah(totalCredit), nominalX, tY, {
+        width: nominalW,
+        align: 'right',
+      });
     } else {
-      doc.fontSize(9).text(formatRupiah(totalDebit), nominalX, tY, { width: nominalW, align: 'right' });
+      doc.fontSize(9).text(formatRupiah(totalDebit), nominalX, tY, {
+        width: nominalW,
+        align: 'right',
+      });
     }
 
     y += totalRowH;
@@ -719,37 +1036,53 @@ export class ReportService {
     doc.y = y + 6;
   }
 
+  private ensureSpace(doc: PDFKit.PDFDocument, minHeight: number) {
+    const usableBottom = doc.page.height - FOOTER_HEIGHT;
+    if (doc.y + minHeight > usableBottom) {
+      doc.addPage();
+      doc.y = PAGE_MARGIN;
+    }
+  }
+
   /**
    * Footer — halaman x dari n + timestamp cetak
    */
   private addFooter(doc: PDFKit.PDFDocument) {
-    const pages     = doc.bufferedPageRange();
+    const pages = doc.bufferedPageRange();
     const printDate = formatTanggalSingkat(new Date());
-    const fY        = doc.page.height - 38;
+    const fY = doc.page.height - 38;
 
     for (let i = 0; i < pages.count; i++) {
       doc.switchToPage(i);
 
       // Garis atas footer
-      doc.strokeColor(theme.border).lineWidth(1)
-         .moveTo(PAGE_MARGIN, fY - 8)
-         .lineTo(doc.page.width - PAGE_MARGIN, fY - 8).stroke();
+      doc
+        .strokeColor(theme.border)
+        .lineWidth(1)
+        .moveTo(PAGE_MARGIN, fY - 8)
+        .lineTo(doc.page.width - PAGE_MARGIN, fY - 8)
+        .stroke();
 
       // Bar biru bawah tipis
-      doc.fillColor(theme.primary).rect(0, doc.page.height - 8, doc.page.width, 8).fill();
+      doc
+        .fillColor(theme.primary)
+        .rect(0, doc.page.height - 8, doc.page.width, 8)
+        .fill();
 
       doc.fontSize(8).font('Helvetica').fillColor(theme.textMuted);
 
       // Kiri — timestamp
-      doc.text(`Dicetak pada: ${printDate}`, PAGE_MARGIN, fY, { align: 'left' });
+      doc.text(`Dicetak pada: ${printDate}`, PAGE_MARGIN, fY, {
+        align: 'left',
+        lineBreak: false,
+      });
 
       // Kanan — nomor halaman
-      doc.text(
-        `Halaman ${i + 1} dari ${pages.count}`,
-        PAGE_MARGIN,
-        fY,
-        { align: 'right', width: doc.page.width - PAGE_MARGIN * 2 },
-      );
+      doc.text(`Halaman ${i + 1} dari ${pages.count}`, PAGE_MARGIN, fY, {
+        align: 'right',
+        width: doc.page.width - PAGE_MARGIN * 2,
+        lineBreak: false,
+      });
     }
   }
 }

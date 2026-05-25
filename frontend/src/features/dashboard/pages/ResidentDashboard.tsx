@@ -11,6 +11,12 @@ import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Button } from "@/shared/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/shared/ui/dropdown-menu";
+import {
   Wallet,
   CreditCard,
   Download,
@@ -24,10 +30,12 @@ import {
   Clock,
   AlertTriangle,
   Trophy,
+  Eye,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { financeService } from "@/features/finance/services/financeService";
-import { downloadFinanceReport } from "@/features/finance/services/reportService";
+import { downloadFinanceReport, previewFinanceReport } from "@/features/finance/services/reportService";
 import { eventService } from "@/features/event/services/eventService";
 import { paymentService } from "@/features/payment/services/paymentService";
 import type { TransparencyBalance, MyBill, EventItem, PaymentItem } from "@/shared/types";
@@ -90,6 +98,7 @@ export default function ResidentDashboard() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PaymentItem[]>([]);
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [previewingReport, setPreviewingReport] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const user = useMemo(() => {
@@ -100,6 +109,17 @@ export default function ResidentDashboard() {
       return null;
     }
   }, []);
+
+  const buildSummaryReportPayload = () => {
+    const now = new Date();
+    const startOfCurrentYear = new Date(now.getFullYear(), 0, 1);
+
+    return {
+      reportType: "summary" as const,
+      startDate: startOfCurrentYear.toISOString(),
+      endDate: now.toISOString(),
+    };
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -131,21 +151,50 @@ export default function ResidentDashboard() {
   }, []);
 
   const handleDownloadSummaryReport = async () => {
-    const now = new Date();
-    const startOfCurrentYear = new Date(now.getFullYear(), 0, 1);
-
     setDownloadingReport(true);
     try {
-      await downloadFinanceReport({
-        reportType: "summary",
-        startDate: startOfCurrentYear.toISOString(),
-        endDate: now.toISOString(),
-      });
+      await downloadFinanceReport(buildSummaryReportPayload());
       toast.success("Laporan keuangan berhasil diunduh.");
     } catch {
       toast.error("Gagal mengunduh laporan keuangan.");
     } finally {
       setDownloadingReport(false);
+    }
+  };
+
+  const handlePreviewSummaryReport = async () => {
+    const previewWindow = window.open("", "_blank");
+
+    if (!previewWindow) {
+      toast.error("Pop-up diblokir. Izinkan pop-up untuk melihat pratinjau.");
+      return;
+    }
+
+    previewWindow.opener = null;
+    previewWindow.document.title = "Menyiapkan pratinjau...";
+    previewWindow.document.body.innerHTML =
+      "<p style=\"font-family: system-ui, sans-serif; padding: 16px;\">Menyiapkan pratinjau PDF...</p>";
+
+    setPreviewingReport(true);
+    try {
+      const url = await previewFinanceReport(buildSummaryReportPayload());
+
+      if (previewWindow.closed) {
+        window.URL.revokeObjectURL(url);
+        return;
+      }
+
+      previewWindow.location.href = url;
+      previewWindow.addEventListener("beforeunload", () => {
+        window.URL.revokeObjectURL(url);
+      });
+    } catch {
+      if (!previewWindow.closed) {
+        previewWindow.close();
+      }
+      toast.error("Gagal menampilkan pratinjau laporan keuangan.");
+    } finally {
+      setPreviewingReport(false);
     }
   };
 
@@ -158,6 +207,8 @@ export default function ResidentDashboard() {
   const approvedEvents = events.filter((e) =>
     ["APPROVED", "FUNDED", "ONGOING", "COMPLETED", "SETTLED"].includes(e.status)
   );
+
+  const isReportBusy = downloadingReport || previewingReport;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -172,23 +223,32 @@ export default function ResidentDashboard() {
           </p>
         </div>
 
-        <Button
-          onClick={handleDownloadSummaryReport}
-          disabled={downloadingReport}
-          className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white"
-        >
-          {downloadingReport ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Mengunduh...
-            </>
-          ) : (
-            <>
-              <Download className="h-4 w-4 mr-2" />
-              Download Laporan Keuangan
-            </>
-          )}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={isReportBusy}
+              className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white"
+            >
+              {isReportBusy ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Laporan Keuangan
+              <ChevronDown className="h-4 w-4 ml-2 opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={handleDownloadSummaryReport} disabled={isReportBusy}>
+              <Download className="h-4 w-4" />
+              Download Laporan
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handlePreviewSummaryReport} disabled={isReportBusy}>
+              <Eye className="h-4 w-4" />
+              Preview Laporan
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* === PENDING PAYMENT REMINDER === */}
