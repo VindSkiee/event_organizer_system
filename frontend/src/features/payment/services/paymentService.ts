@@ -2,6 +2,8 @@
 import { api } from "@/shared/lib/axios";
 import type { ApiResponse, PaymentItem, DuesPaymentResponse } from "@/shared/types";
 
+let historyInFlight: Promise<PaymentItem[]> | null = null;
+
 export const paymentService = {
   /** Get all payment transactions (LEADER/ADMIN/TREASURER) */
   getAll: async (): Promise<PaymentItem[]> => {
@@ -11,8 +13,16 @@ export const paymentService = {
 
   /** Get payment history for self */
   getHistory: async (): Promise<PaymentItem[]> => {
-    const response = await api.get<ApiResponse<PaymentItem[]>>("/payment/history");
-    return response.data.data;
+    if (historyInFlight) return historyInFlight;
+
+    historyInFlight = api
+      .get<ApiResponse<PaymentItem[]>>("/payment/history")
+      .then((response) => response.data.data)
+      .finally(() => {
+        historyInFlight = null;
+      });
+
+    return historyInFlight;
   },
 
   /** Pay monthly dues (creates Midtrans Snap transaction) */

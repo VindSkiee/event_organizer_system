@@ -2,6 +2,8 @@
 import { api } from "@/shared/lib/axios";
 import type { ApiResponse, TransparencyBalance, MyBill, WalletDetail, Transaction, DuesConfig, DuesRule, ChildrenWalletsData, GroupFinanceDetail, TransactionDetail, DuesProgressData } from "@/shared/types";
 
+let myBillInFlight: Promise<MyBill> | null = null;
+
 export const financeService = {
   /** Get RT & RW wallet balance (transparency endpoint) */
   getTransparencyBalance: async (): Promise<TransparencyBalance> => {
@@ -21,10 +23,16 @@ export const financeService = {
 
   /** Get personal bill for logged-in resident */
   getMyBill: async (): Promise<MyBill> => {
-    const response = await api.get<ApiResponse<MyBill>>(
-      "/finance/dues/my-bill"
-    );
-    return response.data.data;
+    if (myBillInFlight) return myBillInFlight;
+
+    myBillInFlight = api
+      .get<ApiResponse<MyBill>>("/finance/dues/my-bill")
+      .then((response) => response.data.data)
+      .finally(() => {
+        myBillInFlight = null;
+      });
+
+    return myBillInFlight;
   },
 
   /** Get wallet details (LEADER/TREASURER/ADMIN) */

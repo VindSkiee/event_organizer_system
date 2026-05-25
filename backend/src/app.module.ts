@@ -50,22 +50,22 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
     SettingsModule,
     ThrottlerModule.forRoot([
       // 1. Anti-Spam Cepat (Burst Protection)
-      // Izinkan 5 request dalam 1 detik (untuk loading awal dashboard)
-      // Jika lebih dari 5x klik dalam sedetik, langsung blokir.
+      // Izinkan 30 request dalam 1 detik (untuk loading awal dashboard)
+      // Jika lebih dari 30x klik dalam sedetik, langsung blokir.
       {
         name: 'short',
         ttl: 1000,
-        limit: 10,
+        limit: 30,
       },
 
       // 2. Mode Hemat CPU (Sustained Usage)
-      // Maksimal 40 request per menit.
-      // Ini setara 1 request tiap 1.5 detik secara rata-rata.
-      // Sudah cukup untuk penggunaan manusia normal, tapi akan memblokir bot/scraper.
+      // Maksimal 120 request per menit.
+      // Ini setara 1 request tiap 0.5 detik secara rata-rata.
+      // Cukup untuk navigasi cepat, tapi tetap memblokir bot/scraper.
       {
         name: 'long',
         ttl: 60000, // 1 menit
-        limit: 40,  // <-- Turunkan dari 100 ke 40
+        limit: 120,
       },
     ]),
   ],
